@@ -33,44 +33,51 @@
     :root { --max: 760px; }
     body { margin: 0; font: 16px/1.45 system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; color: #111; }
     main { max-width: var(--max); padding: 28px 18px 60px; margin: 0 auto; }
-    h1 { font-size: 26px; margin: 0 0 6px; }
-    .sub { margin: 0 0 18px; color: #333; }
+    h1 { font-size: 32px; margin: 0 0; font-weight: 900; letter-spacing: -0.02em; color: #1E6A24; font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; text-transform: uppercase; }
+    .sub { margin: 0 0 18px; color: #333; text-transform: uppercase; letter-spacing: .01em; }
     h2 { font-size: 15px; text-transform: uppercase; letter-spacing: .06em; margin: 28px 0 8px; }
     ul { margin: 0; padding-left: 18px; }
     li { margin: 6px 0; }
     .links a { display: inline-block; margin-right: 14px; }
     a { color: inherit; }
     a:hover { text-decoration: none; }
-    .box { border-top: 1px solid #ddd; padding-top: 18px; margin-top: 22px; }
+    .box { border-top: 1px solid #ddd; padding-top: 4px; margin-top: 22px; }
+    .contact-line { display: block; margin-bottom: 8px; }
+    .cta { background: #f5f5f5; padding: 20px; margin: 28px 0; border-left: 3px solid #1E6A24; }
+    .cta p { margin: 0 0 12px 0; }
+    .cta p:last-child { margin-bottom: 0; }
   </style>
 </head>
 <body>
   <main>
-    <h1>Triple-R Service Co.</h1>
+    <h1>Triple-R Service Co</h1>
     <p class="sub">Repair · Resilience · Regeneration</p>
-    <p>Field repair, diagnostics, and mechanical problem-solving for vehicles, equipment, and small industrial systems.</p>
+    <p>Field repair, machine rebuilds, and diagnostics for vehicles, equipment, and small industrial systems. No machine too old, no job too strange.</p>
 
     <h2>Services</h2>
     <ul>
-      <li>Mobile repair (automotive, trucks, equipment)</li>
-      <li>Diagnostics and troubleshooting</li>
-      <li>Preventive maintenance and inspections</li>
+      <li>Mobile repair & maintenance for heavy trucks, equipment, and automotive</li>
+      <li>Full machine & component rebuilds</li>
       <li>Machine tool setup, repair, and transport</li>
+      <li>Knuckleboom crane service available</li>
     </ul>
 
+    <div class="cta">
+      <p><strong>Equipment needs work?</strong> Get in touch to discuss your project, get a quote, or schedule service.</p>
+    </div>
+
     <div class="box">
-      <h2>Booking & Contact</h2>
-      <p class="links">
-        <a href="https://cal.com/forms/c1b15dd1-3226-4510-a0da-0a5b26cc7b26">Book</a>
-        <a href="mailto:jesse@rrrservice.co">Email</a>
-        <a href="tel:+14133996480">Call/Text</a> (413-399-6480)
+      <h2>Contact</h2>
+      <p>
+        <span class="contact-line">Email: <a href="mailto:jesse@rrrservice.co">jesse@rrrservice.co</a></span>
+        Phone: <a href="tel:+14133996480">413-399-6480</a>
       </p>
       <p><small>Based in <strong>southern Washington</strong>. Travel considered for the right work.</small></p>
     </div>
 
     <div class="box">
       <h2>Ethos</h2>
-      <p>Repair is a form of care for our built environment. The goal is to keep things functional and out of the landfill for as long as possible, and to work in a way that generates minimal waste.</p>
+      <p>Repair is a form of care for our built environment. My goal is to keep what's already been made functional and out of the landfill for as long as possible, and to work in a way that generates minimal waste. A culture of repair makes communities more independent and resilient, and regenerates local economies.</p>
     </div>
 
     <div class="box">
