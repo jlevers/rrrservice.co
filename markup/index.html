@@ -1,0 +1,349 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Parts Markup Calculator &middot; Triple-R Service Co</title>
+  <meta name="description" content="Price matrix parts markup calculator: enter a part cost to get the target gross profit, markup, and sale price." />
+  <meta name="robots" content="noindex" />
+
+  <!-- Favicons -->
+  <link rel="icon" type="image/x-icon" href="/favicons/favicon.ico" />
+  <link rel="icon" type="image/png" sizes="16x16" href="/favicons/favicon-16x16.png" />
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicons/favicon-32x32.png" />
+  <link rel="apple-touch-icon" sizes="180x180" href="/favicons/apple-touch-icon.png" />
+  <link rel="icon" type="image/png" sizes="192x192" href="/favicons/android-chrome-192x192.png" />
+  <link rel="icon" type="image/png" sizes="512x512" href="/favicons/android-chrome-512x512.png" />
+
+  <meta name="theme-color" content="#111111" />
+  <style>
+    :root {
+      --max: 760px;
+      --green: #1E6A24;
+      --green-dark: #17521c;
+      --green-tint: #eaf2ea;
+      --gray: #f5f5f5;
+      --line: #ddd;
+      --warn: #8f3a2e;
+    }
+    * { box-sizing: border-box; }
+    html { color-scheme: light; }
+    body { margin: 0; font: 16px/1.45 system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; color: #111; background: #fff; }
+    main { max-width: var(--max); padding: 28px 18px 60px; margin: 0 auto; }
+    h1 { font-size: 32px; margin: 0 0; font-weight: 900; letter-spacing: -0.02em; color: var(--green); text-transform: uppercase; }
+    h1 a { text-decoration: none; }
+    h2 { font-size: 15px; text-transform: uppercase; letter-spacing: .06em; margin: 28px 0 8px; }
+    a { color: inherit; }
+    a:hover { text-decoration: none; }
+    .header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+    nav a { font-size: 13px; color: var(--green); letter-spacing: .03em; }
+    nav a:hover { color: #111; }
+    .sub { margin: 0 0 18px; color: #333; text-transform: uppercase; letter-spacing: .01em; }
+    .box { border-top: 1px solid var(--line); padding-top: 4px; margin-top: 22px; }
+
+    /* Inputs */
+    .fields { display: flex; flex-wrap: wrap; gap: 16px; margin: 10px 0 4px; }
+    .field { flex: 1 1 220px; min-width: 180px; }
+    .field.narrow { flex: 0 1 200px; }
+    .cost-label { display: block; font-size: 13px; text-transform: uppercase; letter-spacing: .06em; color: #333; margin-bottom: 6px; }
+    .input-wrap { display: flex; align-items: stretch; border: 1px solid #bbb; background: #fff; }
+    .input-wrap:focus-within { border-color: var(--green); box-shadow: 0 0 0 2px var(--green-tint); }
+    .input-wrap .prefix, .input-wrap .suffix { display: flex; align-items: center; padding: 0 12px; background: var(--gray); color: #555; font-weight: 700; }
+    .input-wrap .prefix { border-right: 1px solid var(--line); }
+    .input-wrap .suffix { border-left: 1px solid var(--line); }
+    .input-wrap input { flex: 1; min-width: 0; border: 0; outline: 0; padding: 10px 12px; font: 700 20px/1 system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; color: #111; background: transparent; font-variant-numeric: tabular-nums; }
+    .hint { font-size: 12px; color: #666; margin: 6px 0 0; }
+    .hint.warn { color: var(--warn); font-weight: 600; }
+
+    /* Result cards */
+    .cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin: 20px 0 4px; }
+    .card { border: 1px solid var(--line); background: var(--gray); padding: 12px 10px; text-align: center; }
+    .card .k { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: #333; margin-bottom: 8px; }
+    .card .v { font: 900 clamp(24px, 7vw, 34px)/1 system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; letter-spacing: -0.02em; color: var(--green); display: flex; align-items: baseline; justify-content: center; gap: 1px; font-variant-numeric: tabular-nums; }
+    .card .v .unit { font-size: .45em; font-weight: 800; }
+    .card .t { font-size: 12px; color: #555; margin-top: 8px; }
+    .card .t b { color: #111; }
+
+    .card.on { background: var(--green); border-color: var(--green-dark); }
+    .card.on .k, .card.on .v { color: #fff; }
+    .card.on .t { color: rgba(255,255,255,.85); }
+    .card.on .t b { color: #fff; }
+    .card.under { background: var(--warn); border-color: #742d24; }
+    .card.under .k, .card.under .v { color: #fff; }
+    .card.under .t { color: rgba(255,255,255,.85); }
+    .card.under .t b { color: #fff; }
+
+    .card.sale input { width: auto; max-width: 100%; border: 0; outline: 0; background: transparent; text-align: center; color: inherit; font: inherit; padding: 0; -moz-appearance: textfield; }
+    .card.sale input::-webkit-outer-spin-button,
+    .card.sale input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+    .card.sale input:focus { border-bottom: 2px solid currentColor; }
+    .reset { display: none; margin: 8px 0 0; }
+    .reset button { font: 12px/1 system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; text-transform: uppercase; letter-spacing: .06em; color: var(--green); background: none; border: 0; border-bottom: 1px solid var(--green); padding: 0 0 2px; cursor: pointer; }
+    .reset button:hover { color: #111; border-color: #111; }
+
+    /* Target matrix */
+    table { width: 100%; border-collapse: collapse; font-size: 15px; }
+    caption { text-align: left; font-size: 15px; text-transform: uppercase; letter-spacing: .06em; font-weight: 700; padding: 0 0 8px; }
+    th { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; text-align: right; color: #333; border-bottom: 2px solid #111; padding: 6px 8px; }
+    th:first-child { text-align: left; }
+    td { padding: 7px 8px; border-bottom: 1px solid var(--line); text-align: right; font-variant-numeric: tabular-nums; }
+    td:first-child { text-align: left; }
+    tbody tr.active { background: var(--green-tint); }
+    tbody tr.active td { font-weight: 700; box-shadow: inset 3px 0 0 var(--green); }
+    tbody tr.active td:not(:first-child) { box-shadow: none; }
+    tfoot td { border-bottom: 0; border-top: 2px solid #111; font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: #333; padding-top: 8px; }
+    tfoot td b { color: #111; font-size: 14px; }
+
+    .note { font-size: 13px; color: #555; margin: 10px 0 0; }
+    @media (max-width: 560px) {
+      h1 { font-size: 24px; }
+      .header { flex-wrap: wrap; }
+      .field, .field.narrow { flex: 1 1 100%; }
+    }
+    @media (max-width: 420px) {
+      .card { padding: 10px 6px; }
+      .card .k, .card .t { font-size: 11px; }
+      table { font-size: 14px; }
+      td, th { padding-left: 4px; padding-right: 4px; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <div class="header">
+      <h1><a href="/">Triple-R Service Co</a></h1>
+      <nav><a href="/">Home</a></nav>
+    </div>
+    <p class="sub">Parts Markup Calculator</p>
+
+    <div class="fields">
+      <div class="field">
+        <label class="cost-label" for="cost">Cost of part</label>
+        <div class="input-wrap">
+          <span class="prefix" aria-hidden="true">$</span>
+          <input id="cost" type="text" inputmode="decimal" autocomplete="off" placeholder="0.00" value="78" />
+        </div>
+        <p class="hint">Targets come from the matrix below.</p>
+      </div>
+      <div class="field narrow">
+        <label class="cost-label" for="avg">Average gross profit</label>
+        <div class="input-wrap">
+          <input id="avg" type="text" inputmode="decimal" autocomplete="off" placeholder="30" value="30" />
+          <span class="suffix" aria-hidden="true">%</span>
+        </div>
+        <p class="hint" id="avg-hint">Whole matrix scales to this average.</p>
+      </div>
+    </div>
+
+    <div class="cards" aria-live="polite">
+      <div class="card" id="card-gp">
+        <div class="k">Gross Profit</div>
+        <div class="v"><span id="gp-val">&mdash;</span><span class="unit">%</span></div>
+        <div class="t">Target: <b id="gp-target">&mdash;</b></div>
+      </div>
+      <div class="card" id="card-mu">
+        <div class="k">Markup</div>
+        <div class="v"><span id="mu-val">&mdash;</span><span class="unit">%</span></div>
+        <div class="t">Target: <b id="mu-target">&mdash;</b></div>
+      </div>
+      <div class="card sale" id="card-sale">
+        <div class="k">Sale Price</div>
+        <div class="v"><span class="unit">$</span><input id="sale" type="text" inputmode="decimal" autocomplete="off" aria-label="Sale price" /></div>
+        <div class="t">Target: <b id="sale-target">&mdash;</b></div>
+      </div>
+    </div>
+    <p class="reset" id="reset-row"><button type="button" id="reset-btn">Reset to target price</button></p>
+
+    <div class="box">
+      <table>
+        <caption>Target Matrix</caption>
+        <thead>
+          <tr><th scope="col">Cost of Part</th><th scope="col">Gross Profit %</th><th scope="col">Markup %</th></tr>
+        </thead>
+        <tbody id="matrix"></tbody>
+        <tfoot>
+          <tr><td>Average</td><td><b id="avg-actual">&mdash;</b></td><td></td></tr>
+        </tfoot>
+      </table>
+      <p class="note" id="over-note" hidden>Costs above $5,000 use the top tier until a higher bracket is set.</p>
+    </div>
+  </main>
+
+  <script>
+    // Cost brackets are fixed; the gross-profit column is the shape that gets
+    // scaled. These base values average 30.75%, the original printed matrix.
+    var BRACKETS = [
+      { max: 1,    gp: 50, label: '$0.01 - $1' },
+      { max: 10,   gp: 43, label: '$1.01 - $10' },
+      { max: 25,   gp: 33, label: '$10.01 - $25' },
+      { max: 150,  gp: 31, label: '$25.01 - $150' },
+      { max: 300,  gp: 29, label: '$150.01 - $300' },
+      { max: 500,  gp: 23, label: '$300.01 - $500' },
+      { max: 1000, gp: 20, label: '$500.01 - $1,000' },
+      { max: 5000, gp: 17, label: '$1,000.01 - $5,000' }
+    ];
+    var DEFAULT_AVG_GP = 30;   // change this to move the shipped default
+    var MIN_AVG = 1;
+    var MAX_AVG = 55;          // keeps the top bracket under ~90% GP
+    var BASE_AVG = BRACKETS.reduce(function (s, b) { return s + b.gp; }, 0) / BRACKETS.length;
+
+    var TIERS = [];
+
+    var costEl = document.getElementById('cost');
+    var avgEl = document.getElementById('avg');
+    var saleEl = document.getElementById('sale');
+    var avgHint = document.getElementById('avg-hint');
+    var resetRow = document.getElementById('reset-row');
+    var overNote = document.getElementById('over-note');
+    var saleTouched = false;
+
+    function money(n) {
+      return n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    }
+    function parseNum(v) {
+      var n = parseFloat(String(v).replace(/[$,%\s]/g, ''));
+      return isFinite(n) && n > 0 ? n : null;
+    }
+    function markupFromGp(gp) {
+      return (gp / (100 - gp)) * 100;
+    }
+
+    // Scale the GP column proportionally, then hand out the rounding remainders
+    // largest-first so the whole numbers on screen average exactly the target.
+    function buildTiers(avgGp) {
+      var factor = avgGp / BASE_AVG;
+      var raw = BRACKETS.map(function (b) { return b.gp * factor; });
+      var gps = raw.map(Math.floor);
+      var target = Math.round(avgGp * BRACKETS.length);
+      var short = target - gps.reduce(function (s, v) { return s + v; }, 0);
+      var order = raw
+        .map(function (v, i) { return { i: i, frac: v - Math.floor(v) }; })
+        .sort(function (a, b) { return b.frac - a.frac; });
+      for (var k = 0; k < Math.abs(short); k++) {
+        gps[order[k % order.length].i] += short > 0 ? 1 : -1;
+      }
+      return BRACKETS.map(function (b, i) {
+        var gp = Math.min(99, Math.max(1, gps[i]));
+        return { max: b.max, label: b.label, gp: gp, markup: markupFromGp(gp) };
+      });
+    }
+
+    function tierFor(cost) {
+      for (var i = 0; i < TIERS.length; i++) {
+        if (cost <= TIERS[i].max) return TIERS[i];
+      }
+      return TIERS[TIERS.length - 1];
+    }
+
+    function renderMatrix() {
+      document.getElementById('matrix').innerHTML = TIERS.map(function (t, i) {
+        return '<tr data-i="' + i + '"><td>' + t.label + '</td><td>' + t.gp + '%</td><td>'
+          + Math.round(t.markup) + '%</td></tr>';
+      }).join('');
+      var actual = TIERS.reduce(function (s, t) { return s + t.gp; }, 0) / TIERS.length;
+      document.getElementById('avg-actual').textContent =
+        (Math.round(actual * 100) / 100).toLocaleString('en-US') + '%';
+    }
+
+    function sizeSale() {
+      // Tabular digits are exactly 1ch, so the field hugs its own text.
+      var len = Math.max(1, saleEl.value.length);
+      saleEl.size = len;
+      saleEl.style.width = len + 'ch';
+    }
+    function setState(el, state) {
+      el.classList.toggle('on', state === 'on');
+      el.classList.toggle('under', state === 'under');
+    }
+    function clearCards() {
+      document.getElementById('gp-val').textContent = '—';
+      document.getElementById('mu-val').textContent = '—';
+      ['gp-target', 'mu-target', 'sale-target'].forEach(function (id) {
+        document.getElementById(id).innerHTML = '&mdash;';
+      });
+      ['card-gp', 'card-mu', 'card-sale'].forEach(function (id) {
+        setState(document.getElementById(id), null);
+      });
+      Array.prototype.forEach.call(document.querySelectorAll('#matrix tr'), function (tr) {
+        tr.classList.remove('active');
+      });
+      overNote.hidden = true;
+      resetRow.style.display = 'none';
+      if (!saleTouched) { saleEl.value = ''; sizeSale(); }
+    }
+
+    function update() {
+      var avg = parseNum(avgEl.value);
+      var clamped = null;
+      if (avg === null) {
+        avg = DEFAULT_AVG_GP;
+      } else if (avg < MIN_AVG || avg > MAX_AVG) {
+        clamped = Math.min(MAX_AVG, Math.max(MIN_AVG, avg));
+        avg = clamped;
+      }
+      avgHint.textContent = clamped !== null
+        ? 'Capped at ' + clamped + '% — matrix stays workable in that range.'
+        : 'Whole matrix scales to this average.';
+      avgHint.classList.toggle('warn', clamped !== null);
+
+      TIERS = buildTiers(avg);
+      renderMatrix();
+
+      var cost = parseNum(costEl.value);
+      if (cost === null) { clearCards(); return; }
+
+      var tier = tierFor(cost);
+      // Gross profit drives the price now: sale = cost / (1 - GP).
+      var targetSale = Math.round((cost / (1 - tier.gp / 100)) * 100) / 100;
+
+      if (!saleTouched) { saleEl.value = money(targetSale); sizeSale(); }
+      var sale = parseNum(saleEl.value);
+      if (sale === null) sale = targetSale;
+
+      var gp = ((sale - cost) / sale) * 100;
+      var markup = ((sale - cost) / cost) * 100;
+
+      document.getElementById('gp-val').textContent = Math.round(gp);
+      document.getElementById('mu-val').textContent = Math.round(markup);
+      document.getElementById('gp-target').textContent = tier.gp + '%';
+      document.getElementById('mu-target').textContent = Math.round(tier.markup) + '%';
+      document.getElementById('sale-target').textContent = '$' + money(targetSale);
+
+      var state = gp >= tier.gp - 0.5 ? 'on' : 'under';
+      setState(document.getElementById('card-gp'), state);
+      setState(document.getElementById('card-mu'), state);
+      setState(document.getElementById('card-sale'), state);
+
+      var idx = TIERS.indexOf(tier);
+      Array.prototype.forEach.call(document.querySelectorAll('#matrix tr'), function (tr) {
+        tr.classList.toggle('active', Number(tr.getAttribute('data-i')) === idx);
+      });
+
+      overNote.hidden = cost <= TIERS[TIERS.length - 1].max;
+      resetRow.style.display = saleTouched ? 'block' : 'none';
+    }
+
+    costEl.addEventListener('input', update);
+    avgEl.addEventListener('input', update);
+    saleEl.addEventListener('input', function () { saleTouched = true; sizeSale(); update(); });
+    saleEl.addEventListener('blur', function () {
+      var n = parseNum(saleEl.value);
+      if (n !== null) { saleEl.value = money(n); sizeSale(); }
+    });
+    avgEl.addEventListener('blur', function () {
+      var n = parseNum(avgEl.value);
+      if (n === null) { avgEl.value = DEFAULT_AVG_GP; update(); return; }
+      var c = Math.min(MAX_AVG, Math.max(MIN_AVG, n));
+      if (c !== n) { avgEl.value = c; update(); }
+    });
+    document.getElementById('reset-btn').addEventListener('click', function () {
+      saleTouched = false;
+      update();
+      saleEl.focus();
+    });
+
+    avgEl.value = DEFAULT_AVG_GP;
+    update();
+  </script>
+</body>
+</html>
