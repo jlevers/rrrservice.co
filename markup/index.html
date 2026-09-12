@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Parts Markup Calculator &middot; Triple-R Service Co</title>
-  <meta name="description" content="Price matrix parts markup calculator: enter a part cost to get the target gross profit, markup, and sale price." />
+  <meta name="description" content="Price matrix parts markup calculator: enter part costs to get marked-up per-line prices and a quote total." />
   <meta name="robots" content="noindex" />
 
   <!-- Favicons -->
@@ -18,7 +18,7 @@
   <meta name="theme-color" content="#111111" />
   <style>
     :root {
-      --max: 760px;
+      --max: 900px;
       --green: #1E6A24;
       --green-dark: #17521c;
       --green-tint: #eaf2ea;
@@ -32,38 +32,66 @@
     main { max-width: var(--max); padding: 28px 18px 60px; margin: 0 auto; }
     h1 { font-size: 32px; margin: 0 0; font-weight: 900; letter-spacing: -0.02em; color: var(--green); text-transform: uppercase; }
     h1 a { text-decoration: none; }
-    h2 { font-size: 15px; text-transform: uppercase; letter-spacing: .06em; margin: 28px 0 8px; }
     a { color: inherit; }
     a:hover { text-decoration: none; }
     .header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
     nav a { font-size: 13px; color: var(--green); letter-spacing: .03em; }
     nav a:hover { color: #111; }
     .sub { margin: 0 0 18px; color: #333; text-transform: uppercase; letter-spacing: .01em; }
-    .box { border-top: 1px solid var(--line); padding-top: 4px; margin-top: 22px; }
+    .box { border-top: 1px solid var(--line); padding-top: 4px; margin-top: 26px; }
+    .cap { font-size: 15px; text-transform: uppercase; letter-spacing: .06em; font-weight: 700; margin: 0 0 8px; }
 
-    /* Inputs */
-    .fields { display: flex; flex-wrap: wrap; gap: 16px; margin: 10px 0 4px; }
-    .field { flex: 1 1 220px; min-width: 180px; }
-    .field.narrow { flex: 0 1 200px; }
+    /* Average GP setting */
+    .setting { display: flex; align-items: flex-end; gap: 12px; flex-wrap: wrap; margin: 10px 0 4px; }
     .cost-label { display: block; font-size: 13px; text-transform: uppercase; letter-spacing: .06em; color: #333; margin-bottom: 6px; }
-    .input-wrap { display: flex; align-items: stretch; border: 1px solid #bbb; background: #fff; }
+    .input-wrap { display: flex; align-items: stretch; border: 1px solid #bbb; background: #fff; width: 160px; }
     .input-wrap:focus-within { border-color: var(--green); box-shadow: 0 0 0 2px var(--green-tint); }
-    .input-wrap .prefix, .input-wrap .suffix { display: flex; align-items: center; padding: 0 12px; background: var(--gray); color: #555; font-weight: 700; }
-    .input-wrap .prefix { border-right: 1px solid var(--line); }
-    .input-wrap .suffix { border-left: 1px solid var(--line); }
+    .input-wrap .suffix { display: flex; align-items: center; padding: 0 12px; background: var(--gray); color: #555; font-weight: 700; border-left: 1px solid var(--line); }
     .input-wrap input { flex: 1; min-width: 0; border: 0; outline: 0; padding: 10px 12px; font: 700 20px/1 system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; color: #111; background: transparent; font-variant-numeric: tabular-nums; }
-    .hint { font-size: 12px; color: #666; margin: 6px 0 0; }
+    .hint { font-size: 12px; color: #666; margin: 0 0 4px; }
     .hint.warn { color: var(--warn); font-weight: 600; }
 
-    /* Result cards */
-    .cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin: 20px 0 4px; }
+    /* Line items */
+    table { width: 100%; border-collapse: collapse; font-size: 15px; }
+    th { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; text-align: right; color: #333; border-bottom: 2px solid #111; padding: 6px 8px; white-space: nowrap; }
+    th:first-child { text-align: left; }
+    td { padding: 6px 8px; border-bottom: 1px solid var(--line); text-align: right; font-variant-numeric: tabular-nums; vertical-align: middle; }
+    td:first-child { text-align: left; }
+
+    .items input { border: 0; border-bottom: 1px solid #ccc; background: transparent; font: inherit; font-variant-numeric: tabular-nums; padding: 4px 2px; width: 100%; outline: 0; color: #111; }
+    .items input:focus { border-bottom-color: var(--green); background: var(--green-tint); }
+    .items input::placeholder { color: #aaa; }
+    .items .num { text-align: right; }
+    .items .i-qty { width: 52px; }
+    .money-in { display: flex; align-items: baseline; gap: 2px; }
+    .money-in .pfx { color: #999; font-size: 13px; }
+    .c-gp, .c-total { white-space: nowrap; }
+    .c-gp.short { color: var(--warn); font-weight: 700; }
+    .c-total { font-weight: 700; }
+    .col-rm { width: 34px; }
+    .rm, .row-reset { background: none; border: 0; cursor: pointer; color: #aaa; font-size: 18px; line-height: 1; padding: 2px 4px; }
+    .rm:hover { color: var(--warn); }
+    .row-reset { font-size: 14px; color: var(--green); }
+    .row-reset:hover { color: #111; }
+    .price-cell { display: flex; align-items: baseline; gap: 4px; }
+
+    tfoot td { border-bottom: 0; border-top: 2px solid #111; padding-top: 10px; font-weight: 700; }
+    tfoot .lbl { font-weight: 400; font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: #333; }
+
+    .actions { display: flex; gap: 16px; align-items: center; margin: 12px 0 0; flex-wrap: wrap; }
+    .linkbtn { font: 13px/1 system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; text-transform: uppercase; letter-spacing: .06em; color: var(--green); background: none; border: 0; border-bottom: 1px solid var(--green); padding: 0 0 2px; cursor: pointer; }
+    .linkbtn:hover { color: #111; border-color: #111; }
+    .linkbtn.quiet { color: #777; border-color: #bbb; }
+    .linkbtn.quiet:hover { color: var(--warn); border-color: var(--warn); }
+
+    /* Totals cards */
+    .cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin: 22px 0 4px; }
     .card { border: 1px solid var(--line); background: var(--gray); padding: 12px 10px; text-align: center; }
     .card .k { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: #333; margin-bottom: 8px; }
-    .card .v { font: 900 clamp(24px, 7vw, 34px)/1 system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; letter-spacing: -0.02em; color: var(--green); display: flex; align-items: baseline; justify-content: center; gap: 1px; font-variant-numeric: tabular-nums; }
+    .card .v { font: 900 clamp(24px, 6.5vw, 34px)/1 system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; letter-spacing: -0.02em; color: var(--green); display: flex; align-items: baseline; justify-content: center; gap: 1px; font-variant-numeric: tabular-nums; }
     .card .v .unit { font-size: .45em; font-weight: 800; }
     .card .t { font-size: 12px; color: #555; margin-top: 8px; }
     .card .t b { color: #111; }
-
     .card.on { background: var(--green); border-color: var(--green-dark); }
     .card.on .k, .card.on .v { color: #fff; }
     .card.on .t { color: rgba(255,255,255,.85); }
@@ -73,38 +101,36 @@
     .card.under .t { color: rgba(255,255,255,.85); }
     .card.under .t b { color: #fff; }
 
-    .card.sale input { width: auto; max-width: 100%; border: 0; outline: 0; background: transparent; text-align: center; color: inherit; font: inherit; padding: 0; -moz-appearance: textfield; }
-    .card.sale input::-webkit-outer-spin-button,
-    .card.sale input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
-    .card.sale input:focus { border-bottom: 2px solid currentColor; }
-    .reset { display: none; margin: 8px 0 0; }
-    .reset button { font: 12px/1 system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; text-transform: uppercase; letter-spacing: .06em; color: var(--green); background: none; border: 0; border-bottom: 1px solid var(--green); padding: 0 0 2px; cursor: pointer; }
-    .reset button:hover { color: #111; border-color: #111; }
-
     /* Target matrix */
-    table { width: 100%; border-collapse: collapse; font-size: 15px; }
-    caption { text-align: left; font-size: 15px; text-transform: uppercase; letter-spacing: .06em; font-weight: 700; padding: 0 0 8px; }
-    th { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; text-align: right; color: #333; border-bottom: 2px solid #111; padding: 6px 8px; }
-    th:first-child { text-align: left; }
-    td { padding: 7px 8px; border-bottom: 1px solid var(--line); text-align: right; font-variant-numeric: tabular-nums; }
-    td:first-child { text-align: left; }
-    tbody tr.active { background: var(--green-tint); }
-    tbody tr.active td { font-weight: 700; box-shadow: inset 3px 0 0 var(--green); }
-    tbody tr.active td:not(:first-child) { box-shadow: none; }
-    tfoot td { border-bottom: 0; border-top: 2px solid #111; font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: #333; padding-top: 8px; }
-    tfoot td b { color: #111; font-size: 14px; }
-
+    #matrix-table caption { text-align: left; font-size: 15px; text-transform: uppercase; letter-spacing: .06em; font-weight: 700; padding: 0 0 8px; }
+    #matrix tr.active { background: var(--green-tint); }
+    #matrix tr.active td { font-weight: 700; }
+    #matrix tr.active td:first-child { box-shadow: inset 3px 0 0 var(--green); }
+    #matrix-table tfoot td { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: #333; }
+    #matrix-table tfoot td b { color: #111; font-size: 14px; }
     .note { font-size: 13px; color: #555; margin: 10px 0 0; }
-    @media (max-width: 560px) {
-      h1 { font-size: 24px; }
-      .header { flex-wrap: wrap; }
-      .field, .field.narrow { flex: 1 1 100%; }
+
+    /* Stacked line items on narrow screens */
+    @media (max-width: 720px) {
+      .items thead { display: none; }
+      .items tbody tr { display: grid; grid-template-columns: 1fr 1fr; gap: 0 12px; border: 1px solid var(--line); padding: 8px 10px; margin-bottom: 10px; }
+      .items tbody td { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; border: 0; padding: 5px 0; text-align: right; }
+      .items tbody td::before { content: attr(data-label); font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: #666; white-space: nowrap; }
+      .items tbody td.c-desc { grid-column: 1 / -1; }
+      .items tbody td.c-rm { grid-column: 1 / -1; justify-content: flex-end; }
+      .items tbody td.c-rm::before { content: none; }
+      .items .i-qty { width: 100%; }
+      .items tfoot td { display: flex; justify-content: space-between; border-top: 0; padding: 5px 0; }
+      .items tfoot tr { display: block; border-top: 2px solid #111; padding-top: 8px; }
+      .items tfoot td::before { content: attr(data-label); font-weight: 400; font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: #666; }
+      .items tfoot td.lbl, .items tfoot td[data-label="Qty"] { display: none; }
     }
+    @media (max-width: 560px) { h1 { font-size: 24px; } .header { flex-wrap: wrap; } }
     @media (max-width: 420px) {
       .card { padding: 10px 6px; }
       .card .k, .card .t { font-size: 11px; }
-      table { font-size: 14px; }
-      td, th { padding-left: 4px; padding-right: 4px; }
+      #matrix-table { font-size: 14px; }
+      #matrix-table td, #matrix-table th { padding-left: 4px; padding-right: 4px; }
     }
   </style>
 </head>
@@ -116,22 +142,47 @@
     </div>
     <p class="sub">Parts Markup Calculator</p>
 
-    <div class="fields">
-      <div class="field">
-        <label class="cost-label" for="cost">Cost of part</label>
-        <div class="input-wrap">
-          <span class="prefix" aria-hidden="true">$</span>
-          <input id="cost" type="text" inputmode="decimal" autocomplete="off" placeholder="0.00" value="78" />
-        </div>
-        <p class="hint">Targets come from the matrix below.</p>
-      </div>
-      <div class="field narrow">
+    <div class="setting">
+      <div>
         <label class="cost-label" for="avg">Average gross profit</label>
         <div class="input-wrap">
           <input id="avg" type="text" inputmode="decimal" autocomplete="off" placeholder="30" value="30" />
           <span class="suffix" aria-hidden="true">%</span>
         </div>
-        <p class="hint" id="avg-hint">Whole matrix scales to this average.</p>
+      </div>
+      <p class="hint" id="avg-hint">Whole matrix scales to this average.</p>
+    </div>
+
+    <div class="box">
+      <p class="cap">Parts</p>
+      <table class="items">
+        <thead>
+          <tr>
+            <th scope="col">Part</th>
+            <th scope="col">Cost Ea</th>
+            <th scope="col">Qty</th>
+            <th scope="col">GP %</th>
+            <th scope="col">Price Ea</th>
+            <th scope="col">Line Total</th>
+            <th scope="col" class="col-rm"><span class="sr">&nbsp;</span></th>
+          </tr>
+        </thead>
+        <tbody id="rows"></tbody>
+        <tfoot>
+          <tr>
+            <td class="lbl">Totals</td>
+            <td data-label="Total cost" id="t-cost">&mdash;</td>
+            <td data-label="Qty"></td>
+            <td data-label="Gross profit" id="t-gp">&mdash;</td>
+            <td></td>
+            <td data-label="Total price" id="t-total">&mdash;</td>
+            <td></td>
+          </tr>
+        </tfoot>
+      </table>
+      <div class="actions">
+        <button type="button" class="linkbtn" id="add-btn">+ Add part</button>
+        <button type="button" class="linkbtn quiet" id="clear-btn">Clear all</button>
       </div>
     </div>
 
@@ -146,16 +197,15 @@
         <div class="v"><span id="mu-val">&mdash;</span><span class="unit">%</span></div>
         <div class="t">Target: <b id="mu-target">&mdash;</b></div>
       </div>
-      <div class="card sale" id="card-sale">
-        <div class="k">Sale Price</div>
-        <div class="v"><span class="unit">$</span><input id="sale" type="text" inputmode="decimal" autocomplete="off" aria-label="Sale price" /></div>
-        <div class="t">Target: <b id="sale-target">&mdash;</b></div>
+      <div class="card" id="card-total">
+        <div class="k">Total Price</div>
+        <div class="v"><span class="unit">$</span><span id="total-val">0.00</span></div>
+        <div class="t">Target: <b id="total-target">&mdash;</b></div>
       </div>
     </div>
-    <p class="reset" id="reset-row"><button type="button" id="reset-btn">Reset to target price</button></p>
 
     <div class="box">
-      <table>
+      <table id="matrix-table">
         <caption>Target Matrix</caption>
         <thead>
           <tr><th scope="col">Cost of Part</th><th scope="col">Gross Profit %</th><th scope="col">Markup %</th></tr>
@@ -166,6 +216,7 @@
         </tfoot>
       </table>
       <p class="note" id="over-note" hidden>Costs above $5,000 use the top tier until a higher bracket is set.</p>
+      <p class="note">Each line takes its bracket from the <strong>cost of one part</strong>, then multiplies out by quantity.</p>
     </div>
   </main>
 
@@ -186,16 +237,15 @@
     var MIN_AVG = 1;
     var MAX_AVG = 55;          // keeps the top bracket under ~90% GP
     var BASE_AVG = BRACKETS.reduce(function (s, b) { return s + b.gp; }, 0) / BRACKETS.length;
+    var START_ROWS = 3;
 
     var TIERS = [];
+    var items = [];
 
-    var costEl = document.getElementById('cost');
     var avgEl = document.getElementById('avg');
-    var saleEl = document.getElementById('sale');
     var avgHint = document.getElementById('avg-hint');
-    var resetRow = document.getElementById('reset-row');
+    var rowsEl = document.getElementById('rows');
     var overNote = document.getElementById('over-note');
-    var saleTouched = false;
 
     function money(n) {
       return n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -203,6 +253,10 @@
     function parseNum(v) {
       var n = parseFloat(String(v).replace(/[$,%\s]/g, ''));
       return isFinite(n) && n > 0 ? n : null;
+    }
+    function parseQty(v) {
+      var n = parseInt(String(v).replace(/[,\s]/g, ''), 10);
+      return isFinite(n) && n > 0 ? n : 1;
     }
     function markupFromGp(gp) {
       return (gp / (100 - gp)) * 100;
@@ -245,34 +299,83 @@
         (Math.round(actual * 100) / 100).toLocaleString('en-US') + '%';
     }
 
-    function sizeSale() {
-      // Tabular digits are exactly 1ch, so the field hugs its own text.
-      var len = Math.max(1, saleEl.value.length);
-      saleEl.size = len;
-      saleEl.style.width = len + 'ch';
-    }
     function setState(el, state) {
       el.classList.toggle('on', state === 'on');
       el.classList.toggle('under', state === 'under');
     }
-    function clearCards() {
-      document.getElementById('gp-val').textContent = '—';
-      document.getElementById('mu-val').textContent = '—';
-      ['gp-target', 'mu-target', 'sale-target'].forEach(function (id) {
-        document.getElementById(id).innerHTML = '&mdash;';
+
+    function addRow(focus) {
+      var tr = document.createElement('tr');
+      tr.innerHTML =
+        '<td class="c-desc" data-label="Part"><input class="i-desc" type="text" placeholder="Description (optional)" autocomplete="off" aria-label="Part description"></td>' +
+        '<td data-label="Cost ea"><span class="money-in"><span class="pfx">$</span><input class="i-cost num" type="text" inputmode="decimal" placeholder="0.00" autocomplete="off" aria-label="Cost each"></span></td>' +
+        '<td data-label="Qty"><input class="i-qty num" type="text" inputmode="numeric" value="1" autocomplete="off" aria-label="Quantity"></td>' +
+        '<td class="c-gp" data-label="GP %">&mdash;</td>' +
+        '<td data-label="Price ea"><span class="price-cell"><span class="money-in"><span class="pfx">$</span><input class="i-price num" type="text" inputmode="decimal" placeholder="0.00" autocomplete="off" aria-label="Price each"></span><button class="row-reset" type="button" title="Reset to target price" hidden>&#8635;</button></span></td>' +
+        '<td class="c-total" data-label="Line total">&mdash;</td>' +
+        '<td class="c-rm"><button class="rm" type="button" aria-label="Remove line">&times;</button></td>';
+
+      var item = {
+        tr: tr,
+        override: null,
+        desc: tr.querySelector('.i-desc'),
+        cost: tr.querySelector('.i-cost'),
+        qty: tr.querySelector('.i-qty'),
+        price: tr.querySelector('.i-price'),
+        gpCell: tr.querySelector('.c-gp'),
+        totalCell: tr.querySelector('.c-total'),
+        resetBtn: tr.querySelector('.row-reset')
+      };
+
+      // Typing in the last row grows the list, so there is always a blank line.
+      function maybeGrow() {
+        if (items[items.length - 1] === item) addRow(false);
+      }
+      item.cost.addEventListener('input', function () { maybeGrow(); recalc(); });
+      item.desc.addEventListener('input', maybeGrow);
+      item.qty.addEventListener('input', recalc);
+      item.price.addEventListener('input', function () {
+        item.override = parseNum(item.price.value);
+        recalc();
       });
-      ['card-gp', 'card-mu', 'card-sale'].forEach(function (id) {
-        setState(document.getElementById(id), null);
+      item.price.addEventListener('blur', function () {
+        if (item.override !== null) item.price.value = money(item.override);
+        else recalc();
       });
-      Array.prototype.forEach.call(document.querySelectorAll('#matrix tr'), function (tr) {
-        tr.classList.remove('active');
+      item.cost.addEventListener('blur', function () {
+        var n = parseNum(item.cost.value);
+        if (n !== null) item.cost.value = money(n);
       });
-      overNote.hidden = true;
-      resetRow.style.display = 'none';
-      if (!saleTouched) { saleEl.value = ''; sizeSale(); }
+      item.resetBtn.addEventListener('click', function () {
+        item.override = null;
+        recalc(true);
+        item.price.focus();
+      });
+      tr.querySelector('.rm').addEventListener('click', function () { removeRow(item); });
+
+      items.push(item);
+      rowsEl.appendChild(tr);
+      if (focus) item.desc.focus();
+      return item;
     }
 
-    function update() {
+    function removeRow(item) {
+      var i = items.indexOf(item);
+      if (i === -1) return;
+      items.splice(i, 1);
+      item.tr.remove();
+      if (!items.length) addRow(false);
+      recalc();
+    }
+
+    function clearAll() {
+      items.slice().forEach(function (it) { it.tr.remove(); });
+      items.length = 0;
+      for (var i = 0; i < START_ROWS; i++) addRow(false);
+      recalc();
+    }
+
+    function recalc(force) {
       var avg = parseNum(avgEl.value);
       var clamped = null;
       if (avg === null) {
@@ -289,61 +392,93 @@
       TIERS = buildTiers(avg);
       renderMatrix();
 
-      var cost = parseNum(costEl.value);
-      if (cost === null) { clearCards(); return; }
+      var totalCost = 0, totalPrice = 0, targetPrice = 0, filled = 0, overMax = false;
+      var used = {};
 
-      var tier = tierFor(cost);
-      // Gross profit drives the price now: sale = cost / (1 - GP).
-      var targetSale = Math.round((cost / (1 - tier.gp / 100)) * 100) / 100;
+      items.forEach(function (item) {
+        var cost = parseNum(item.cost.value);
+        if (cost === null) {
+          item.gpCell.textContent = '—';
+          item.gpCell.classList.remove('short');
+          item.totalCell.textContent = '—';
+          item.resetBtn.hidden = item.override === null;
+          if (item.override === null && (force || document.activeElement !== item.price)) item.price.value = '';
+          return;
+        }
 
-      if (!saleTouched) { saleEl.value = money(targetSale); sizeSale(); }
-      var sale = parseNum(saleEl.value);
-      if (sale === null) sale = targetSale;
+        filled++;
+        if (cost > BRACKETS[BRACKETS.length - 1].max) overMax = true;
 
-      var gp = ((sale - cost) / sale) * 100;
-      var markup = ((sale - cost) / cost) * 100;
+        var tier = tierFor(cost);
+        used[TIERS.indexOf(tier)] = true;
 
-      document.getElementById('gp-val').textContent = Math.round(gp);
-      document.getElementById('mu-val').textContent = Math.round(markup);
-      document.getElementById('gp-target').textContent = tier.gp + '%';
-      document.getElementById('mu-target').textContent = Math.round(tier.markup) + '%';
-      document.getElementById('sale-target').textContent = '$' + money(targetSale);
+        // Gross profit drives the price: unit price = cost / (1 - GP).
+        var targetUnit = Math.round((cost / (1 - tier.gp / 100)) * 100) / 100;
+        if (item.override === null && (force || document.activeElement !== item.price)) {
+          item.price.value = money(targetUnit);
+        }
+        var unit = item.override !== null ? item.override : targetUnit;
+        var qty = parseQty(item.qty.value);
 
-      var state = gp >= tier.gp - 0.5 ? 'on' : 'under';
-      setState(document.getElementById('card-gp'), state);
-      setState(document.getElementById('card-mu'), state);
-      setState(document.getElementById('card-sale'), state);
+        var lineCost = Math.round(cost * qty * 100) / 100;
+        var lineTotal = Math.round(unit * qty * 100) / 100;
+        var lineGp = unit > 0 ? ((unit - cost) / unit) * 100 : 0;
 
-      var idx = TIERS.indexOf(tier);
-      Array.prototype.forEach.call(document.querySelectorAll('#matrix tr'), function (tr) {
-        tr.classList.toggle('active', Number(tr.getAttribute('data-i')) === idx);
+        item.gpCell.textContent = Math.round(lineGp) + '%';
+        item.gpCell.classList.toggle('short', lineGp < tier.gp - 0.5);
+        item.gpCell.title = 'Target for this bracket: ' + tier.gp + '%';
+        item.totalCell.textContent = '$' + money(lineTotal);
+        item.resetBtn.hidden = item.override === null;
+
+        totalCost += lineCost;
+        totalPrice += lineTotal;
+        targetPrice += Math.round(targetUnit * qty * 100) / 100;
       });
 
-      overNote.hidden = cost <= TIERS[TIERS.length - 1].max;
-      resetRow.style.display = saleTouched ? 'block' : 'none';
+      totalCost = Math.round(totalCost * 100) / 100;
+      totalPrice = Math.round(totalPrice * 100) / 100;
+      targetPrice = Math.round(targetPrice * 100) / 100;
+
+      var gp = totalPrice > 0 ? ((totalPrice - totalCost) / totalPrice) * 100 : 0;
+      var mu = totalCost > 0 ? ((totalPrice - totalCost) / totalCost) * 100 : 0;
+      var tGp = targetPrice > 0 ? ((targetPrice - totalCost) / targetPrice) * 100 : 0;
+      var tMu = totalCost > 0 ? ((targetPrice - totalCost) / totalCost) * 100 : 0;
+
+      document.getElementById('t-cost').textContent = '$' + money(totalCost);
+      document.getElementById('t-gp').textContent = filled ? Math.round(gp) + '%' : '—';
+      document.getElementById('t-total').textContent = '$' + money(totalPrice);
+
+      document.getElementById('gp-val').textContent = filled ? Math.round(gp) : '—';
+      document.getElementById('mu-val').textContent = filled ? Math.round(mu) : '—';
+      document.getElementById('total-val').textContent = money(totalPrice);
+      document.getElementById('gp-target').textContent = filled ? Math.round(tGp) + '%' : '—';
+      document.getElementById('mu-target').textContent = filled ? Math.round(tMu) + '%' : '—';
+      document.getElementById('total-target').textContent = filled ? '$' + money(targetPrice) : '—';
+
+      var state = !filled ? null : (totalPrice >= targetPrice - 0.005 ? 'on' : 'under');
+      ['card-gp', 'card-mu', 'card-total'].forEach(function (id) {
+        setState(document.getElementById(id), state);
+      });
+
+      Array.prototype.forEach.call(document.querySelectorAll('#matrix tr'), function (tr) {
+        tr.classList.toggle('active', !!used[tr.getAttribute('data-i')]);
+      });
+      overNote.hidden = !overMax;
     }
 
-    costEl.addEventListener('input', update);
-    avgEl.addEventListener('input', update);
-    saleEl.addEventListener('input', function () { saleTouched = true; sizeSale(); update(); });
-    saleEl.addEventListener('blur', function () {
-      var n = parseNum(saleEl.value);
-      if (n !== null) { saleEl.value = money(n); sizeSale(); }
-    });
+    avgEl.addEventListener('input', function () { recalc(true); });
     avgEl.addEventListener('blur', function () {
       var n = parseNum(avgEl.value);
-      if (n === null) { avgEl.value = DEFAULT_AVG_GP; update(); return; }
+      if (n === null) { avgEl.value = DEFAULT_AVG_GP; recalc(true); return; }
       var c = Math.min(MAX_AVG, Math.max(MIN_AVG, n));
-      if (c !== n) { avgEl.value = c; update(); }
+      if (c !== n) { avgEl.value = c; recalc(true); }
     });
-    document.getElementById('reset-btn').addEventListener('click', function () {
-      saleTouched = false;
-      update();
-      saleEl.focus();
-    });
+    document.getElementById('add-btn').addEventListener('click', function () { addRow(true); });
+    document.getElementById('clear-btn').addEventListener('click', clearAll);
 
     avgEl.value = DEFAULT_AVG_GP;
-    update();
+    for (var i = 0; i < START_ROWS; i++) addRow(false);
+    recalc();
   </script>
 </body>
 </html>
