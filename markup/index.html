@@ -103,6 +103,24 @@
     .card.under .t { color: rgba(255,255,255,.85); }
     .card.under .t b { color: #fff; }
 
+    /* Fluids & bulk */
+    .fluid-grid { display: flex; flex-wrap: wrap; gap: 14px; align-items: flex-end; margin: 12px 0 14px; }
+    .ffield { flex: 0 1 auto; }
+    .ffield.f-wide { flex: 1 1 200px; min-width: 170px; }
+    .input-wrap.sm { width: 128px; }
+    .input-wrap.sm input { font-size: 16px; padding: 9px 10px; }
+    .fin, .combo input, .combo select { border: 1px solid #bbb; background: #fff; font: 16px/1 system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; color: #111; padding: 9px 10px; outline: 0; }
+    .fin { width: 100%; }
+    .fin:focus, .combo input:focus, .combo select:focus { border-color: var(--green); box-shadow: 0 0 0 2px var(--green-tint); }
+    .combo { display: flex; }
+    .combo input { width: 68px; border-right: 0; text-align: right; font-weight: 700; font-variant-numeric: tabular-nums; }
+    .combo select { background: var(--gray); font-size: 13px; padding: 9px 6px; }
+    .fluid-out { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; background: var(--green-tint); border-left: 3px solid var(--green); padding: 12px 14px; }
+    .fo-detail { flex: 1 1 240px; font-size: 13px; color: #333; }
+    .fo-price { display: flex; align-items: baseline; gap: 8px; }
+    .fo-k { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: #333; }
+    .fo-v { font: 900 26px/1 system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; color: var(--green); font-variant-numeric: tabular-nums; }
+
     /* Target matrix */
     #matrix-table caption { text-align: left; font-size: 15px; text-transform: uppercase; letter-spacing: .06em; font-weight: 700; padding: 0 0 8px; }
     #matrix tr.active { background: var(--green-tint); }
@@ -217,6 +235,44 @@
     </div>
 
     <div class="box">
+      <p class="cap">Fluids &amp; bulk</p>
+      <p class="hint">What a quart out of a drum or bucket actually costs you, once you account for what won't pump out.</p>
+      <div class="fluid-grid">
+        <div class="ffield f-wide">
+          <label class="cost-label" for="f-desc">Fluid</label>
+          <input id="f-desc" class="fin" type="text" placeholder="80W-90 gear oil" autocomplete="off" />
+        </div>
+        <div class="ffield">
+          <label class="cost-label" for="f-cost">Container cost</label>
+          <div class="input-wrap sm"><span class="prefix" aria-hidden="true">$</span><input id="f-cost" type="text" inputmode="decimal" placeholder="0.00" autocomplete="off" /></div>
+        </div>
+        <div class="ffield">
+          <label class="cost-label" for="f-size">Holds</label>
+          <div class="combo">
+            <input id="f-size" type="text" inputmode="decimal" value="5" autocomplete="off" aria-label="Container size" />
+            <select id="f-unit" aria-label="Container unit"></select>
+          </div>
+        </div>
+        <div class="ffield">
+          <label class="cost-label" for="f-usable">Usable</label>
+          <div class="input-wrap sm"><input id="f-usable" type="text" inputmode="decimal" value="92" autocomplete="off" /><span class="suffix" aria-hidden="true">%</span></div>
+        </div>
+        <div class="ffield">
+          <label class="cost-label" for="f-bill">Bill by</label>
+          <select id="f-bill" class="fin" aria-label="Billing unit"></select>
+        </div>
+      </div>
+      <div class="fluid-out">
+        <div class="fo-detail" id="f-detail">Enter a container cost to price it.</div>
+        <div class="fo-price">
+          <span class="fo-k">Price per <span id="f-bill-label">quart</span></span>
+          <span class="fo-v">$<span id="f-price">&mdash;</span></span>
+        </div>
+        <button type="button" class="linkbtn" id="f-add">+ Add to parts list</button>
+      </div>
+    </div>
+
+    <div class="box">
       <table id="matrix-table">
         <caption>Target Matrix</caption>
         <thead>
@@ -258,6 +314,13 @@
     var avgHint = document.getElementById('avg-hint');
     var freightEl = document.getElementById('freight');
     var freightHint = document.getElementById('freight-hint');
+    var fDesc = document.getElementById('f-desc');
+    var fCost = document.getElementById('f-cost');
+    var fSize = document.getElementById('f-size');
+    var fUnit = document.getElementById('f-unit');
+    var fUsable = document.getElementById('f-usable');
+    var fBill = document.getElementById('f-bill');
+    var lastFluid = null;
     var rowsEl = document.getElementById('rows');
     var overNote = document.getElementById('over-note');
 
@@ -268,10 +331,11 @@
       var n = parseFloat(String(v).replace(/[$,%\s]/g, ''));
       return isFinite(n) && n > 0 ? n : null;
     }
-    // Quantities take decimals: 1.5 gal of gear oil, 2.5 lb of grease.
+    // Whole units only. A part amount rounds up rather than truncating, so a
+    // measured 1.5 gal bills as 2 and never under-bills.
     function parseQty(v) {
       var n = parseFloat(String(v).replace(/[,\s]/g, ''));
-      return isFinite(n) && n > 0 ? n : 1;
+      return isFinite(n) && n > 0 ? Math.ceil(n) : 1;
     }
     function markupFromGp(gp) {
       return (gp / (100 - gp)) * 100;
@@ -314,6 +378,88 @@
         (Math.round(actual * 100) / 100).toLocaleString('en-US') + '%';
     }
 
+    // Volume converts through quarts, weight through pounds.
+    var UNITS = {
+      gal: { label: 'gallons', one: 'gallon', abbr: 'gal', dim: 'vol', base: 4 },
+      qt:  { label: 'quarts',  one: 'quart',  abbr: 'qt',  dim: 'vol', base: 1 },
+      L:   { label: 'liters',  one: 'liter',  abbr: 'L',   dim: 'vol', base: 1.056688 },
+      lb:  { label: 'pounds',  one: 'pound',  abbr: 'lb',  dim: 'wt',  base: 1 },
+      oz:  { label: 'ounces',  one: 'ounce',  abbr: 'oz',  dim: 'wt',  base: 0.0625 }
+    };
+
+    function fillUnitSelects() {
+      fUnit.innerHTML = Object.keys(UNITS).map(function (k) {
+        return '<option value="' + k + '">' + UNITS[k].label + '</option>';
+      }).join('');
+      fUnit.value = 'gal';
+      fillBillOptions();
+    }
+    // Billing units are limited to the container's own dimension, so volume
+    // never gets priced per pound.
+    function fillBillOptions() {
+      var dim = UNITS[fUnit.value].dim;
+      var keep = fBill.value;
+      fBill.innerHTML = Object.keys(UNITS).filter(function (k) {
+        return UNITS[k].dim === dim;
+      }).map(function (k) {
+        return '<option value="' + k + '">' + UNITS[k].label + '</option>';
+      }).join('');
+      fBill.value = (UNITS[keep] && UNITS[keep].dim === dim) ? keep : (dim === 'vol' ? 'qt' : 'lb');
+    }
+
+    function trim(n) {
+      return (Math.round(n * 100) / 100).toLocaleString('en-US');
+    }
+
+    function recalcFluid() {
+      var bu = UNITS[fBill.value] || UNITS.qt;
+      document.getElementById('f-bill-label').textContent = bu.one;
+
+      var cost = parseNum(fCost.value);
+      var size = parseNum(fSize.value);
+      var usable = parseNum(fUsable.value);
+      if (usable === null) usable = 100;
+      usable = Math.min(100, Math.max(1, usable));
+
+      var detail = document.getElementById('f-detail');
+      var priceEl = document.getElementById('f-price');
+      if (cost === null || size === null || !TIERS.length) {
+        lastFluid = null;
+        priceEl.textContent = '—';
+        detail.textContent = 'Enter a container cost to price it.';
+        return;
+      }
+
+      var cu = UNITS[fUnit.value];
+      var usableBase = size * cu.base * (usable / 100);
+      var usableBill = usableBase / bu.base;
+      var perBill = cost / usableBill;
+      var tier = tierFor(perBill);
+      var price = Math.round((perBill / (1 - tier.gp / 100)) * 100) / 100;
+
+      lastFluid = { perBill: perBill, price: price, unit: bu };
+      priceEl.textContent = money(price);
+      detail.textContent = trim(usableBill) + ' ' + bu.abbr + ' usable · costs you $'
+        + money(perBill) + '/' + bu.abbr + ' · bracket ' + tier.label + ' at ' + tier.gp + '% GP';
+    }
+
+    function addFluidToParts() {
+      if (!lastFluid) return;
+      var target = null;
+      for (var i = 0; i < items.length; i++) {
+        if (parseNum(items[i].cost.value) === null) { target = items[i]; break; }
+      }
+      if (!target) target = addRow(false);
+      target.desc.value = (fDesc.value.trim() || 'Fluid') + ' (per ' + lastFluid.unit.abbr + ')';
+      target.cost.value = money(lastFluid.perBill);
+      target.qty.value = '1';
+      target.override = null;
+      if (items[items.length - 1] === target) addRow(false);
+      recalc(true);
+      target.qty.focus();
+      target.qty.select();
+    }
+
     function setState(el, state) {
       el.classList.toggle('on', state === 'on');
       el.classList.toggle('under', state === 'under');
@@ -324,7 +470,7 @@
       tr.innerHTML =
         '<td class="c-desc" data-label="Part"><input class="i-desc" type="text" placeholder="Description (optional)" autocomplete="off" aria-label="Part description"></td>' +
         '<td data-label="Cost ea"><span class="money-in"><span class="pfx">$</span><input class="i-cost num" type="text" inputmode="decimal" placeholder="0.00" autocomplete="off" aria-label="Cost each"></span></td>' +
-        '<td data-label="Qty"><input class="i-qty num" type="text" inputmode="decimal" value="1" autocomplete="off" aria-label="Quantity"></td>' +
+        '<td data-label="Qty"><input class="i-qty num" type="text" inputmode="numeric" value="1" autocomplete="off" aria-label="Quantity"></td>' +
         '<td data-label="Freight"><span class="money-in"><span class="pfx">$</span><input class="i-freight num" type="text" inputmode="decimal" placeholder="0.00" autocomplete="off" aria-label="Freight share"></span></td>' +
         '<td class="c-gp" data-label="GP %">&mdash;</td>' +
         '<td data-label="Price ea"><span class="price-cell"><span class="money-in"><span class="pfx">$</span><input class="i-price num" type="text" inputmode="decimal" placeholder="0.00" autocomplete="off" aria-label="Price each"></span><button class="row-reset" type="button" title="Reset to target price" hidden>&#8635;</button></span></td>' +
@@ -352,6 +498,10 @@
       item.cost.addEventListener('input', function () { maybeGrow(); recalc(); });
       item.desc.addEventListener('input', maybeGrow);
       item.qty.addEventListener('input', function () { recalc(); });
+      item.qty.addEventListener('blur', function () {
+        if (item.qty.value.trim()) item.qty.value = parseQty(item.qty.value);
+        recalc();
+      });
       item.freight.addEventListener('input', function () {
         item.freightPin = parseNum(item.freight.value);
         recalc();
@@ -564,6 +714,7 @@
         tr.classList.toggle('active', !!used[tr.getAttribute('data-i')]);
       });
       overNote.hidden = !overMax;
+      recalcFluid();
     }
 
     avgEl.addEventListener('input', function () { recalc(true); });
@@ -579,10 +730,17 @@
       var c = Math.min(MAX_AVG, Math.max(MIN_AVG, n));
       if (c !== n) { avgEl.value = c; recalc(true); }
     });
+    [fCost, fSize, fUsable].forEach(function (el) {
+      el.addEventListener('input', recalcFluid);
+    });
+    fUnit.addEventListener('change', function () { fillBillOptions(); recalcFluid(); });
+    fBill.addEventListener('change', recalcFluid);
+    document.getElementById('f-add').addEventListener('click', addFluidToParts);
     document.getElementById('add-btn').addEventListener('click', function () { addRow(true); });
     document.getElementById('clear-btn').addEventListener('click', clearAll);
 
     avgEl.value = DEFAULT_AVG_GP;
+    fillUnitSelects();
     for (var i = 0; i < START_ROWS; i++) addRow(false);
     recalc();
   </script>
