@@ -47,6 +47,7 @@
     .input-wrap { display: flex; align-items: stretch; border: 1px solid #bbb; background: #fff; width: 160px; }
     .input-wrap:focus-within { border-color: var(--green); box-shadow: 0 0 0 2px var(--green-tint); }
     .input-wrap .suffix { display: flex; align-items: center; padding: 0 12px; background: var(--gray); color: #555; font-weight: 700; border-left: 1px solid var(--line); }
+    .input-wrap .prefix { display: flex; align-items: center; padding: 0 12px; background: var(--gray); color: #555; font-weight: 700; border-right: 1px solid var(--line); }
     .input-wrap input { flex: 1; min-width: 0; border: 0; outline: 0; padding: 10px 12px; font: 700 20px/1 system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; color: #111; background: transparent; font-variant-numeric: tabular-nums; }
     .hint { font-size: 12px; color: #666; margin: 0 0 4px; }
     .hint.warn { color: var(--warn); font-weight: 600; }
@@ -66,6 +67,7 @@
     .money-in { display: flex; align-items: baseline; gap: 2px; }
     .money-in .pfx { color: #999; font-size: 13px; }
     .c-gp, .c-total { white-space: nowrap; }
+    .items .i-freight.pinned { border-bottom-color: var(--green); font-weight: 700; color: var(--green); }
     .c-gp.short { color: var(--warn); font-weight: 700; }
     .c-total { font-weight: 700; }
     .col-rm { width: 34px; }
@@ -150,6 +152,13 @@
           <span class="suffix" aria-hidden="true">%</span>
         </div>
       </div>
+      <div>
+        <label class="cost-label" for="freight">Freight / shipping</label>
+        <div class="input-wrap">
+          <span class="prefix" aria-hidden="true">$</span>
+          <input id="freight" type="text" inputmode="decimal" autocomplete="off" placeholder="0.00" />
+        </div>
+      </div>
       <p class="hint" id="avg-hint">Whole matrix scales to this average.</p>
     </div>
 
@@ -161,6 +170,7 @@
             <th scope="col">Part</th>
             <th scope="col">Cost Ea</th>
             <th scope="col">Qty</th>
+            <th scope="col">Freight</th>
             <th scope="col">GP %</th>
             <th scope="col">Price Ea</th>
             <th scope="col">Line Total</th>
@@ -173,6 +183,7 @@
             <td class="lbl">Totals</td>
             <td data-label="Total cost" id="t-cost">&mdash;</td>
             <td data-label="Qty"></td>
+            <td data-label="Freight" id="t-freight">&mdash;</td>
             <td data-label="Gross profit" id="t-gp">&mdash;</td>
             <td></td>
             <td data-label="Total price" id="t-total">&mdash;</td>
@@ -184,6 +195,7 @@
         <button type="button" class="linkbtn" id="add-btn">+ Add part</button>
         <button type="button" class="linkbtn quiet" id="clear-btn">Clear all</button>
       </div>
+      <p class="hint" id="freight-hint">Freight spreads across lines by cost share. Type over a line's figure to pin it there; clear it to go back to automatic.</p>
     </div>
 
     <div class="cards" aria-live="polite">
@@ -216,7 +228,7 @@
         </tfoot>
       </table>
       <p class="note" id="over-note" hidden>Costs above $5,000 use the top tier until a higher bracket is set.</p>
-      <p class="note">Each line takes its bracket from the <strong>cost of one part</strong>, then multiplies out by quantity.</p>
+      <p class="note">Each line takes its bracket from the <strong>landed cost of one part</strong> — its own cost plus its share of freight — then multiplies out by quantity.</p>
     </div>
   </main>
 
@@ -244,6 +256,8 @@
 
     var avgEl = document.getElementById('avg');
     var avgHint = document.getElementById('avg-hint');
+    var freightEl = document.getElementById('freight');
+    var freightHint = document.getElementById('freight-hint');
     var rowsEl = document.getElementById('rows');
     var overNote = document.getElementById('over-note');
 
@@ -254,8 +268,9 @@
       var n = parseFloat(String(v).replace(/[$,%\s]/g, ''));
       return isFinite(n) && n > 0 ? n : null;
     }
+    // Quantities take decimals: 1.5 gal of gear oil, 2.5 lb of grease.
     function parseQty(v) {
-      var n = parseInt(String(v).replace(/[,\s]/g, ''), 10);
+      var n = parseFloat(String(v).replace(/[,\s]/g, ''));
       return isFinite(n) && n > 0 ? n : 1;
     }
     function markupFromGp(gp) {
@@ -309,7 +324,8 @@
       tr.innerHTML =
         '<td class="c-desc" data-label="Part"><input class="i-desc" type="text" placeholder="Description (optional)" autocomplete="off" aria-label="Part description"></td>' +
         '<td data-label="Cost ea"><span class="money-in"><span class="pfx">$</span><input class="i-cost num" type="text" inputmode="decimal" placeholder="0.00" autocomplete="off" aria-label="Cost each"></span></td>' +
-        '<td data-label="Qty"><input class="i-qty num" type="text" inputmode="numeric" value="1" autocomplete="off" aria-label="Quantity"></td>' +
+        '<td data-label="Qty"><input class="i-qty num" type="text" inputmode="decimal" value="1" autocomplete="off" aria-label="Quantity"></td>' +
+        '<td data-label="Freight"><span class="money-in"><span class="pfx">$</span><input class="i-freight num" type="text" inputmode="decimal" placeholder="0.00" autocomplete="off" aria-label="Freight share"></span></td>' +
         '<td class="c-gp" data-label="GP %">&mdash;</td>' +
         '<td data-label="Price ea"><span class="price-cell"><span class="money-in"><span class="pfx">$</span><input class="i-price num" type="text" inputmode="decimal" placeholder="0.00" autocomplete="off" aria-label="Price each"></span><button class="row-reset" type="button" title="Reset to target price" hidden>&#8635;</button></span></td>' +
         '<td class="c-total" data-label="Line total">&mdash;</td>' +
@@ -321,6 +337,8 @@
         desc: tr.querySelector('.i-desc'),
         cost: tr.querySelector('.i-cost'),
         qty: tr.querySelector('.i-qty'),
+        freight: tr.querySelector('.i-freight'),
+        freightPin: null,
         price: tr.querySelector('.i-price'),
         gpCell: tr.querySelector('.c-gp'),
         totalCell: tr.querySelector('.c-total'),
@@ -333,7 +351,15 @@
       }
       item.cost.addEventListener('input', function () { maybeGrow(); recalc(); });
       item.desc.addEventListener('input', maybeGrow);
-      item.qty.addEventListener('input', recalc);
+      item.qty.addEventListener('input', function () { recalc(); });
+      item.freight.addEventListener('input', function () {
+        item.freightPin = parseNum(item.freight.value);
+        recalc();
+      });
+      item.freight.addEventListener('blur', function () {
+        if (item.freightPin !== null) item.freight.value = money(item.freightPin);
+        else recalc(true);
+      });
       item.price.addEventListener('input', function () {
         item.override = parseNum(item.price.value);
         recalc();
@@ -369,6 +395,7 @@
     }
 
     function clearAll() {
+      freightEl.value = '';
       items.slice().forEach(function (it) { it.tr.remove(); });
       items.length = 0;
       for (var i = 0; i < START_ROWS; i++) addRow(false);
@@ -392,52 +419,124 @@
       TIERS = buildTiers(avg);
       renderMatrix();
 
-      var totalCost = 0, totalPrice = 0, targetPrice = 0, filled = 0, overMax = false;
+      var totalCost = 0, totalPrice = 0, targetPrice = 0, totalFreight = 0;
+      var filled = 0, overMax = false;
       var used = {};
 
+      // Pass 1 — read every line, and blank the ones with no cost yet.
+      var live = [];
       items.forEach(function (item) {
-        var cost = parseNum(item.cost.value);
-        if (cost === null) {
+        item._cost = parseNum(item.cost.value);
+        item._qty = parseQty(item.qty.value);
+        if (item._cost === null) {
           item.gpCell.textContent = '—';
           item.gpCell.classList.remove('short');
           item.totalCell.textContent = '—';
           item.resetBtn.hidden = item.override === null;
           if (item.override === null && (force || document.activeElement !== item.price)) item.price.value = '';
+          if (item.freightPin === null && (force || document.activeElement !== item.freight)) item.freight.value = '';
           return;
         }
+        live.push(item);
+      });
 
+      // Pass 2 — spread the order's freight over the lines by cost share. A
+      // pinned line takes its amount off the top; the rest divides what's left.
+      var orderFreight = parseNum(freightEl.value) || 0;
+      var pinnedTotal = 0, autoExt = 0;
+      var autoRows = [];
+      live.forEach(function (item) {
+        if (item.freightPin !== null) {
+          pinnedTotal += item.freightPin;
+        } else {
+          autoExt += item._cost * item._qty;
+          autoRows.push(item);
+        }
+      });
+      var remaining = Math.max(0, orderFreight - pinnedTotal);
+      var allocated = 0;
+      autoRows.forEach(function (item) {
+        var share = autoExt > 0
+          ? remaining * ((item._cost * item._qty) / autoExt)
+          : remaining / autoRows.length;
+        item._freight = Math.round(share * 100) / 100;
+        allocated += item._freight;
+      });
+      // The rounding residual lands on the biggest auto line so the split sums exact.
+      if (autoRows.length) {
+        var residual = Math.round((remaining - allocated) * 100) / 100;
+        if (residual !== 0) {
+          var biggest = autoRows.reduce(function (a, b) {
+            return (b._cost * b._qty) > (a._cost * a._qty) ? b : a;
+          });
+          biggest._freight = Math.round((biggest._freight + residual) * 100) / 100;
+        }
+      }
+      live.forEach(function (item) {
+        if (item.freightPin !== null) item._freight = item.freightPin;
+      });
+
+      // Pass 3 — price each line off its landed cost.
+      live.forEach(function (item) {
+        var cost = item._cost, qty = item._qty, freight = item._freight || 0;
         filled++;
-        if (cost > BRACKETS[BRACKETS.length - 1].max) overMax = true;
 
-        var tier = tierFor(cost);
+        if (item.freightPin === null && (force || document.activeElement !== item.freight)) {
+          item.freight.value = freight ? money(freight) : '';
+        }
+        item.freight.classList.toggle('pinned', item.freightPin !== null);
+
+        // Freight rides with the part, so the bracket reads landed unit cost.
+        var landedUnit = cost + freight / qty;
+        if (landedUnit > BRACKETS[BRACKETS.length - 1].max) overMax = true;
+
+        var tier = tierFor(landedUnit);
         used[TIERS.indexOf(tier)] = true;
 
-        // Gross profit drives the price: unit price = cost / (1 - GP).
-        var targetUnit = Math.round((cost / (1 - tier.gp / 100)) * 100) / 100;
+        // Gross profit drives the price: unit price = landed cost / (1 - GP).
+        var targetUnit = Math.round((landedUnit / (1 - tier.gp / 100)) * 100) / 100;
         if (item.override === null && (force || document.activeElement !== item.price)) {
           item.price.value = money(targetUnit);
         }
         var unit = item.override !== null ? item.override : targetUnit;
-        var qty = parseQty(item.qty.value);
 
-        var lineCost = Math.round(cost * qty * 100) / 100;
+        var lineCost = Math.round((cost * qty + freight) * 100) / 100;
         var lineTotal = Math.round(unit * qty * 100) / 100;
-        var lineGp = unit > 0 ? ((unit - cost) / unit) * 100 : 0;
+        var lineGp = unit > 0 ? ((unit - landedUnit) / unit) * 100 : 0;
 
         item.gpCell.textContent = Math.round(lineGp) + '%';
         item.gpCell.classList.toggle('short', lineGp < tier.gp - 0.5);
-        item.gpCell.title = 'Target for this bracket: ' + tier.gp + '%';
+        item.gpCell.title = 'Landed $' + money(landedUnit) + ' ea · bracket '
+          + tier.label + ' · target ' + tier.gp + '%';
         item.totalCell.textContent = '$' + money(lineTotal);
         item.resetBtn.hidden = item.override === null;
 
         totalCost += lineCost;
+        totalFreight += freight;
         totalPrice += lineTotal;
         targetPrice += Math.round(targetUnit * qty * 100) / 100;
       });
 
       totalCost = Math.round(totalCost * 100) / 100;
+      totalFreight = Math.round(totalFreight * 100) / 100;
       totalPrice = Math.round(totalPrice * 100) / 100;
       targetPrice = Math.round(targetPrice * 100) / 100;
+
+      // Say so when pinned lines don't add up to the freight actually paid.
+      var gap = Math.round((orderFreight - totalFreight) * 100) / 100;
+      if (orderFreight > 0 && !live.length) {
+        freightHint.textContent = 'Freight entered, but no parts to spread it over.';
+        freightHint.classList.add('warn');
+      } else if (gap > 0.005) {
+        freightHint.textContent = '$' + money(gap) + ' of freight is unassigned — pinned lines leave no room to spread the rest.';
+        freightHint.classList.add('warn');
+      } else if (gap < -0.005) {
+        freightHint.textContent = 'Pinned freight is $' + money(-gap) + ' over the order total.';
+        freightHint.classList.add('warn');
+      } else {
+        freightHint.textContent = "Freight spreads across lines by cost share. Type over a line's figure to pin it there; clear it to go back to automatic.";
+        freightHint.classList.remove('warn');
+      }
 
       var gp = totalPrice > 0 ? ((totalPrice - totalCost) / totalPrice) * 100 : 0;
       var mu = totalCost > 0 ? ((totalPrice - totalCost) / totalCost) * 100 : 0;
@@ -445,6 +544,7 @@
       var tMu = totalCost > 0 ? ((targetPrice - totalCost) / totalCost) * 100 : 0;
 
       document.getElementById('t-cost').textContent = '$' + money(totalCost);
+      document.getElementById('t-freight').textContent = '$' + money(totalFreight);
       document.getElementById('t-gp').textContent = filled ? Math.round(gp) + '%' : '—';
       document.getElementById('t-total').textContent = '$' + money(totalPrice);
 
@@ -467,6 +567,12 @@
     }
 
     avgEl.addEventListener('input', function () { recalc(true); });
+    freightEl.addEventListener('input', function () { recalc(true); });
+    freightEl.addEventListener('blur', function () {
+      var n = parseNum(freightEl.value);
+      if (n !== null) { freightEl.value = money(n); } else if (freightEl.value.trim()) { freightEl.value = ''; }
+      recalc(true);
+    });
     avgEl.addEventListener('blur', function () {
       var n = parseNum(avgEl.value);
       if (n === null) { avgEl.value = DEFAULT_AVG_GP; recalc(true); return; }
