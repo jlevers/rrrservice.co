@@ -149,7 +149,14 @@
     .fo-detail { flex: 1 1 240px; font-size: 13px; color: #333; }
     .fo-price { display: flex; align-items: baseline; gap: 8px; }
     .fo-k { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: #333; }
-    .fo-v { font: 900 26px/1 system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; color: var(--green); font-variant-numeric: tabular-nums; }
+    .fo-v { font: 900 26px/1 system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; color: var(--green); font-variant-numeric: tabular-nums; display: flex; align-items: baseline; }
+    .fo-input { width: 5ch; border: 0; border-bottom: 2px solid var(--green); background: transparent; font: inherit; color: inherit; padding: 0 0 2px; outline: 0; text-align: left; }
+    .fo-input:focus { background: #fff; }
+    .saved-row { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; padding: 8px 0; border-bottom: 1px solid var(--line); }
+    .sv-name { font-weight: 700; flex: 1 1 160px; }
+    .sv-meta { font-size: 12px; color: #777; }
+    .sv-price { font-weight: 700; color: var(--green); font-variant-numeric: tabular-nums; }
+    .sv-acts { display: flex; gap: 10px; align-items: baseline; }
 
     /* Target matrix */
     #matrix-table caption { text-align: left; font-size: 15px; text-transform: uppercase; letter-spacing: .06em; font-weight: 700; padding: 0 0 8px; }
@@ -259,7 +266,7 @@
 
     <div class="box">
       <p class="cap">Fluids &amp; bulk</p>
-      <p class="hint">What a quart out of a drum or bucket costs you, and what to charge for it.</p>
+      <p class="hint">Fluids sit outside the matrix. Set a list price once, save it, and bill that price every job &mdash; your cost moves with how you bought it, the customer's price shouldn't.</p>
       <div class="fluid-grid">
         <div class="ffield f-wide">
           <label class="cost-label" for="f-desc">Fluid</label>
@@ -280,14 +287,27 @@
           <label class="cost-label" for="f-bill">Bill by</label>
           <select id="f-bill" class="fin" aria-label="Billing unit"></select>
         </div>
+        <div class="ffield">
+          <label class="cost-label" for="f-mult">Multiplier</label>
+          <div class="input-wrap sm"><span class="prefix" aria-hidden="true">&times;</span><input id="f-mult" type="text" inputmode="decimal" value="1.8" autocomplete="off" /></div>
+        </div>
       </div>
       <div class="fluid-out">
         <div class="fo-detail" id="f-detail">Enter a container cost to price it.</div>
         <div class="fo-price">
-          <span class="fo-k">Price per <span id="f-bill-label">quart</span></span>
-          <span class="fo-v">$<span id="f-price">&mdash;</span></span>
+          <span class="fo-k">Your price per <span id="f-bill-label">quart</span></span>
+          <span class="fo-v">$<input id="f-price" class="fo-input" type="text" inputmode="decimal" placeholder="0.00" autocomplete="off" aria-label="Your list price per unit" /></span>
         </div>
+      </div>
+      <div class="actions">
         <button type="button" class="linkbtn" id="f-add">+ Add to parts list</button>
+        <button type="button" class="linkbtn" id="f-save">Save this fluid</button>
+        <span class="hint" id="f-msg"></span>
+      </div>
+      <div id="saved-wrap" hidden>
+        <p class="cap" style="margin-top:18px">Saved fluids</p>
+        <div id="saved-list"></div>
+        <p class="hint">Saved in this browser only &mdash; they won't follow you to another device.</p>
       </div>
     </div>
 
@@ -342,7 +362,14 @@
     var fSize = document.getElementById('f-size');
     var fUnit = document.getElementById('f-unit');
     var fBill = document.getElementById('f-bill');
+    var fMult = document.getElementById('f-mult');
+    var fPrice = document.getElementById('f-price');
+    var fMsg = document.getElementById('f-msg');
     var lastFluid = null;
+    var priceTouched = false;
+    var DEFAULT_MULT = 1.8;    // ≈44% GP, close to the matrix's own small-part bracket
+    var FLUID_KEY = 'rrr-fluids-v1';
+    var savedFluids = [];
 
     function money(n) {
       return n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -846,11 +873,12 @@
 
       var cost = parseNum(fCost.value);
       var size = parseNum(fSize.value);
+      var mult = parseNum(fMult.value) || DEFAULT_MULT;
       var detail = document.getElementById('f-detail');
-      var priceEl = document.getElementById('f-price');
-      if (cost === null || size === null || !TIERS.length) {
+
+      if (cost === null || size === null) {
         lastFluid = null;
-        priceEl.textContent = '—';
+        if (!priceTouched) fPrice.value = '';
         detail.textContent = 'Enter a container cost to price it.';
         return;
       }
@@ -858,17 +886,28 @@
       var cu = UNITS[fUnit.value];
       var billUnits = (size * cu.base) / bu.base;
       var perBill = cost / billUnits;
-      var tier = tierFor(perBill);
-      var price = Math.round((perBill / (1 - tier.gp / 100)) * 100) / 100;
+      var suggested = perBill * mult;
+      // Quote-friendly: nudge the suggestion to the nearest quarter.
+      var rounded = Math.round(suggested * 4) / 4;
+      if (!priceTouched) fPrice.value = money(rounded);
 
-      lastFluid = { perBill: perBill, price: price, unit: bu };
-      priceEl.textContent = money(price);
+      var listPrice = parseNum(fPrice.value);
+      if (listPrice === null) listPrice = rounded;
+      var gp = listPrice > 0 ? ((listPrice - perBill) / listPrice) * 100 : 0;
+
+      lastFluid = { perBill: perBill, price: listPrice, unit: bu };
       detail.textContent = trim(billUnits) + ' ' + bu.abbr + ' per container · costs you $'
-        + money(perBill) + '/' + bu.abbr + ' · bracket ' + tier.label + ' at ' + tier.gp + '% GP';
+        + money(perBill) + '/' + bu.abbr + ' · ×' + mult + ' suggests $' + money(rounded)
+        + ' · you\'re at ' + Math.round(gp) + '% GP';
     }
 
     function addFluidToParts() {
-      if (!lastFluid) return;
+      if (!lastFluid) { flash('Enter a container cost first.'); return; }
+      placeFluid(fDesc.value.trim(), lastFluid.perBill, lastFluid.price, lastFluid.unit.abbr);
+    }
+
+    // The saved list price is pinned onto the line, so the matrix leaves it alone.
+    function placeFluid(name, perUnit, price, abbr) {
       var target = null, host = null;
       for (var o = 0; o < orders.length && !target; o++) {
         for (var i = 0; i < orders[o].items.length; i++) {
@@ -878,14 +917,103 @@
         }
       }
       if (!target) { host = orders[0] || addOrder(false); target = addRow(host, false); }
-      target.desc.value = (fDesc.value.trim() || 'Fluid') + ' (per ' + lastFluid.unit.abbr + ')';
-      target.cost.value = money(lastFluid.perBill);
+      target.desc.value = (name || 'Fluid') + ' (per ' + abbr + ')';
+      target.cost.value = money(perUnit);
       target.qty.value = '1';
-      target.override = null;
+      target.override = price;
+      target.price.value = money(price);
       if (host.items[host.items.length - 1] === target) addRow(host, false);
-      recalc(true);
+      recalc();
       target.qty.focus();
       target.qty.select();
+    }
+
+    /* ---------------- saved fluids ---------------- */
+
+    function loadFluids() {
+      try {
+        var raw = JSON.parse(localStorage.getItem(FLUID_KEY));
+        savedFluids = Array.isArray(raw) ? raw : [];
+      } catch (e) { savedFluids = []; }
+    }
+    function storeFluids() {
+      try { localStorage.setItem(FLUID_KEY, JSON.stringify(savedFluids)); return true; }
+      catch (e) { return false; }
+    }
+    function flash(msg) {
+      fMsg.textContent = msg;
+      clearTimeout(flash._t);
+      flash._t = setTimeout(function () { fMsg.textContent = ''; }, 3000);
+    }
+
+    function saveFluid() {
+      var name = fDesc.value.trim();
+      if (!name) { flash('Give the fluid a name first.'); fDesc.focus(); return; }
+      if (!lastFluid) { flash('Enter a container cost first.'); return; }
+      var entry = {
+        name: name,
+        cost: Math.round(lastFluid.perBill * 10000) / 10000,
+        price: lastFluid.price,
+        abbr: lastFluid.unit.abbr,
+        cCost: fCost.value, cSize: fSize.value, cUnit: fUnit.value,
+        bill: fBill.value, mult: fMult.value
+      };
+      var at = -1;
+      for (var i = 0; i < savedFluids.length; i++) {
+        if (savedFluids[i].name.toLowerCase() === name.toLowerCase()) { at = i; break; }
+      }
+      if (at >= 0) savedFluids[at] = entry; else savedFluids.push(entry);
+      renderSaved();
+      flash(storeFluids()
+        ? (at >= 0 ? 'Updated ' + name + '.' : 'Saved ' + name + '.')
+        : "Couldn't save — this browser is blocking storage.");
+    }
+
+    function renderSaved() {
+      var wrap = document.getElementById('saved-wrap');
+      var list = document.getElementById('saved-list');
+      wrap.hidden = !savedFluids.length;
+      list.innerHTML = '';
+      savedFluids.forEach(function (f, idx) {
+        var row = document.createElement('div');
+        row.className = 'saved-row';
+        row.innerHTML =
+          '<span class="sv-name"></span>' +
+          '<span class="sv-meta"></span>' +
+          '<span class="sv-price"></span>' +
+          '<span class="sv-acts">' +
+            '<button type="button" class="linkbtn sv-add">Add</button>' +
+            '<button type="button" class="linkbtn quiet sv-edit">Edit</button>' +
+            '<button type="button" class="rm sv-del" aria-label="Delete saved fluid">&times;</button>' +
+          '</span>';
+        row.querySelector('.sv-name').textContent = f.name;
+        row.querySelector('.sv-meta').textContent = 'costs $' + money(f.cost) + '/' + f.abbr
+          + ' · ×' + (Math.round((f.price / f.cost) * 100) / 100);
+        row.querySelector('.sv-price').textContent = '$' + money(f.price) + '/' + f.abbr;
+        row.querySelector('.sv-add').addEventListener('click', function () {
+          placeFluid(f.name, f.cost, f.price, f.abbr);
+        });
+        row.querySelector('.sv-edit').addEventListener('click', function () {
+          fDesc.value = f.name;
+          fCost.value = f.cCost || '';
+          fSize.value = f.cSize || '';
+          fUnit.value = f.cUnit || 'gal';
+          fillBillOptions();
+          fBill.value = f.bill || 'qt';
+          fMult.value = f.mult || DEFAULT_MULT;
+          priceTouched = true;
+          fPrice.value = money(f.price);
+          recalcFluid();
+          fDesc.scrollIntoView({ block: 'center' });
+        });
+        row.querySelector('.sv-del').addEventListener('click', function () {
+          savedFluids.splice(idx, 1);
+          renderSaved();
+          storeFluids();
+          flash('Removed ' + f.name + '.');
+        });
+        list.appendChild(row);
+      });
     }
 
     /* ---------------- wiring ---------------- */
@@ -899,15 +1027,27 @@
     });
     chargeEl.addEventListener('input', function () { recalc(); });
     noTaxEl.addEventListener('change', function () { recalc(); });
-    [fCost, fSize].forEach(function (el) { el.addEventListener('input', recalcFluid); });
-    fUnit.addEventListener('change', function () { fillBillOptions(); recalcFluid(); });
-    fBill.addEventListener('change', recalcFluid);
+    // Editing any input re-suggests; typing a price pins it until an input changes.
+    [fCost, fSize, fMult].forEach(function (el) {
+      el.addEventListener('input', function () { priceTouched = false; recalcFluid(); });
+    });
+    fUnit.addEventListener('change', function () { priceTouched = false; fillBillOptions(); recalcFluid(); });
+    fBill.addEventListener('change', function () { priceTouched = false; recalcFluid(); });
+    fPrice.addEventListener('input', function () { priceTouched = true; recalcFluid(); });
+    fPrice.addEventListener('blur', function () {
+      var n = parseNum(fPrice.value);
+      if (n !== null) fPrice.value = money(n);
+      recalcFluid();
+    });
     document.getElementById('f-add').addEventListener('click', addFluidToParts);
+    document.getElementById('f-save').addEventListener('click', saveFluid);
     document.getElementById('add-order').addEventListener('click', function () { addOrder(true); });
     document.getElementById('clear-btn').addEventListener('click', clearAll);
 
     avgEl.value = DEFAULT_AVG_GP;
     fillUnitSelects();
+    loadFluids();
+    renderSaved();
     addOrder(false);
     recalc();
   </script>
