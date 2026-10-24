@@ -68,6 +68,10 @@
     .money-in .pfx { color: #999; font-size: 13px; }
     .c-gp, .c-total { white-space: nowrap; }
     .items .i-freight.pinned { border-bottom-color: var(--green); font-weight: 700; color: var(--green); }
+    .col-tax { width: 42px; }
+    .items td.c-tax { text-align: center; }
+    .items input[type="checkbox"] { width: auto; border: 0; padding: 0; margin: 0; accent-color: var(--green); transform: scale(1.15); cursor: pointer; }
+    .items input[type="checkbox"]:focus { background: transparent; }
     .c-gp.short { color: var(--warn); font-weight: 700; }
     .c-total { font-weight: 700; }
     .col-rm { width: 34px; }
@@ -177,6 +181,13 @@
           <input id="freight" type="text" inputmode="decimal" autocomplete="off" placeholder="0.00" />
         </div>
       </div>
+      <div>
+        <label class="cost-label" for="tax">Sales tax paid</label>
+        <div class="input-wrap">
+          <input id="tax" type="text" inputmode="decimal" autocomplete="off" placeholder="8.1" />
+          <span class="suffix" aria-hidden="true">%</span>
+        </div>
+      </div>
       <p class="hint" id="avg-hint">Whole matrix scales to this average.</p>
     </div>
 
@@ -188,6 +199,7 @@
             <th scope="col">Part</th>
             <th scope="col">Cost Ea</th>
             <th scope="col">Qty</th>
+            <th scope="col" class="col-tax">Tax</th>
             <th scope="col">Freight</th>
             <th scope="col">GP %</th>
             <th scope="col">Price Ea</th>
@@ -201,6 +213,7 @@
             <td class="lbl">Totals</td>
             <td data-label="Total cost" id="t-cost">&mdash;</td>
             <td data-label="Qty"></td>
+            <td data-label="Tax paid" id="t-tax">&mdash;</td>
             <td data-label="Freight" id="t-freight">&mdash;</td>
             <td data-label="Gross profit" id="t-gp">&mdash;</td>
             <td></td>
@@ -236,7 +249,7 @@
 
     <div class="box">
       <p class="cap">Fluids &amp; bulk</p>
-      <p class="hint">What a quart out of a drum or bucket actually costs you, once you account for what won't pump out.</p>
+      <p class="hint">What a quart out of a drum or bucket costs you, and what to charge for it.</p>
       <div class="fluid-grid">
         <div class="ffield f-wide">
           <label class="cost-label" for="f-desc">Fluid</label>
@@ -252,10 +265,6 @@
             <input id="f-size" type="text" inputmode="decimal" value="5" autocomplete="off" aria-label="Container size" />
             <select id="f-unit" aria-label="Container unit"></select>
           </div>
-        </div>
-        <div class="ffield">
-          <label class="cost-label" for="f-usable">Usable</label>
-          <div class="input-wrap sm"><input id="f-usable" type="text" inputmode="decimal" value="92" autocomplete="off" /><span class="suffix" aria-hidden="true">%</span></div>
         </div>
         <div class="ffield">
           <label class="cost-label" for="f-bill">Bill by</label>
@@ -284,7 +293,8 @@
         </tfoot>
       </table>
       <p class="note" id="over-note" hidden>Costs above $5,000 use the top tier until a higher bracket is set.</p>
-      <p class="note">Each line takes its bracket from the <strong>landed cost of one part</strong> — its own cost plus its share of freight — then multiplies out by quantity.</p>
+      <p class="note">Each line takes its bracket from the <strong>landed cost of one part</strong> — its own cost, any sales tax you paid on it, and its share of freight — then multiplies out by quantity.</p>
+      <p class="note">Tick <strong>Tax</strong> on the lines you actually paid sales tax on. That is tax you paid as part of the cost, so it gets marked up with the part. Tax you <em>charge the customer</em> is a separate thing, worked out on the finished invoice, and isn't calculated here.</p>
     </div>
   </main>
 
@@ -314,11 +324,11 @@
     var avgHint = document.getElementById('avg-hint');
     var freightEl = document.getElementById('freight');
     var freightHint = document.getElementById('freight-hint');
+    var taxEl = document.getElementById('tax');
     var fDesc = document.getElementById('f-desc');
     var fCost = document.getElementById('f-cost');
     var fSize = document.getElementById('f-size');
     var fUnit = document.getElementById('f-unit');
-    var fUsable = document.getElementById('f-usable');
     var fBill = document.getElementById('f-bill');
     var lastFluid = null;
     var rowsEl = document.getElementById('rows');
@@ -417,9 +427,6 @@
 
       var cost = parseNum(fCost.value);
       var size = parseNum(fSize.value);
-      var usable = parseNum(fUsable.value);
-      if (usable === null) usable = 100;
-      usable = Math.min(100, Math.max(1, usable));
 
       var detail = document.getElementById('f-detail');
       var priceEl = document.getElementById('f-price');
@@ -431,15 +438,14 @@
       }
 
       var cu = UNITS[fUnit.value];
-      var usableBase = size * cu.base * (usable / 100);
-      var usableBill = usableBase / bu.base;
-      var perBill = cost / usableBill;
+      var billUnits = (size * cu.base) / bu.base;
+      var perBill = cost / billUnits;
       var tier = tierFor(perBill);
       var price = Math.round((perBill / (1 - tier.gp / 100)) * 100) / 100;
 
       lastFluid = { perBill: perBill, price: price, unit: bu };
       priceEl.textContent = money(price);
-      detail.textContent = trim(usableBill) + ' ' + bu.abbr + ' usable · costs you $'
+      detail.textContent = trim(billUnits) + ' ' + bu.abbr + ' per container · costs you $'
         + money(perBill) + '/' + bu.abbr + ' · bracket ' + tier.label + ' at ' + tier.gp + '% GP';
     }
 
@@ -471,6 +477,7 @@
         '<td class="c-desc" data-label="Part"><input class="i-desc" type="text" placeholder="Description (optional)" autocomplete="off" aria-label="Part description"></td>' +
         '<td data-label="Cost ea"><span class="money-in"><span class="pfx">$</span><input class="i-cost num" type="text" inputmode="decimal" placeholder="0.00" autocomplete="off" aria-label="Cost each"></span></td>' +
         '<td data-label="Qty"><input class="i-qty num" type="text" inputmode="numeric" value="1" autocomplete="off" aria-label="Quantity"></td>' +
+        '<td class="c-tax" data-label="Tax paid"><input class="i-tax" type="checkbox" aria-label="Sales tax was paid on this part"></td>' +
         '<td data-label="Freight"><span class="money-in"><span class="pfx">$</span><input class="i-freight num" type="text" inputmode="decimal" placeholder="0.00" autocomplete="off" aria-label="Freight share"></span></td>' +
         '<td class="c-gp" data-label="GP %">&mdash;</td>' +
         '<td data-label="Price ea"><span class="price-cell"><span class="money-in"><span class="pfx">$</span><input class="i-price num" type="text" inputmode="decimal" placeholder="0.00" autocomplete="off" aria-label="Price each"></span><button class="row-reset" type="button" title="Reset to target price" hidden>&#8635;</button></span></td>' +
@@ -483,6 +490,7 @@
         desc: tr.querySelector('.i-desc'),
         cost: tr.querySelector('.i-cost'),
         qty: tr.querySelector('.i-qty'),
+        taxBox: tr.querySelector('.i-tax'),
         freight: tr.querySelector('.i-freight'),
         freightPin: null,
         price: tr.querySelector('.i-price'),
@@ -502,6 +510,7 @@
         if (item.qty.value.trim()) item.qty.value = parseQty(item.qty.value);
         recalc();
       });
+      item.taxBox.addEventListener('change', function () { recalc(true); });
       item.freight.addEventListener('input', function () {
         item.freightPin = parseNum(item.freight.value);
         recalc();
@@ -569,7 +578,7 @@
       TIERS = buildTiers(avg);
       renderMatrix();
 
-      var totalCost = 0, totalPrice = 0, targetPrice = 0, totalFreight = 0;
+      var totalCost = 0, totalPrice = 0, targetPrice = 0, totalFreight = 0, totalTax = 0;
       var filled = 0, overMax = false;
       var used = {};
 
@@ -592,6 +601,8 @@
 
       // Pass 2 — spread the order's freight over the lines by cost share. A
       // pinned line takes its amount off the top; the rest divides what's left.
+      var taxRate = parseNum(taxEl.value) || 0;
+      taxRate = Math.min(100, Math.max(0, taxRate));
       var orderFreight = parseNum(freightEl.value) || 0;
       var pinnedTotal = 0, autoExt = 0;
       var autoRows = [];
@@ -631,13 +642,18 @@
         var cost = item._cost, qty = item._qty, freight = item._freight || 0;
         filled++;
 
+        // Sales tax paid at the counter is part of what the part cost, so it
+        // rides into the bracket alongside freight.
+        var taxMult = item.taxBox.checked ? 1 + taxRate / 100 : 1;
+        var lineTax = Math.round(cost * qty * (taxMult - 1) * 100) / 100;
+
         if (item.freightPin === null && (force || document.activeElement !== item.freight)) {
           item.freight.value = freight ? money(freight) : '';
         }
         item.freight.classList.toggle('pinned', item.freightPin !== null);
 
         // Freight rides with the part, so the bracket reads landed unit cost.
-        var landedUnit = cost + freight / qty;
+        var landedUnit = cost * taxMult + freight / qty;
         if (landedUnit > BRACKETS[BRACKETS.length - 1].max) overMax = true;
 
         var tier = tierFor(landedUnit);
@@ -650,18 +666,20 @@
         }
         var unit = item.override !== null ? item.override : targetUnit;
 
-        var lineCost = Math.round((cost * qty + freight) * 100) / 100;
+        var lineCost = Math.round((cost * qty * taxMult + freight) * 100) / 100;
         var lineTotal = Math.round(unit * qty * 100) / 100;
         var lineGp = unit > 0 ? ((unit - landedUnit) / unit) * 100 : 0;
 
         item.gpCell.textContent = Math.round(lineGp) + '%';
         item.gpCell.classList.toggle('short', lineGp < tier.gp - 0.5);
-        item.gpCell.title = 'Landed $' + money(landedUnit) + ' ea · bracket '
-          + tier.label + ' · target ' + tier.gp + '%';
+        item.gpCell.title = 'Landed $' + money(landedUnit) + ' ea'
+          + (lineTax ? ' (incl. tax)' : '') + ' · bracket ' + tier.label
+          + ' · target ' + tier.gp + '%';
         item.totalCell.textContent = '$' + money(lineTotal);
         item.resetBtn.hidden = item.override === null;
 
         totalCost += lineCost;
+        totalTax += lineTax;
         totalFreight += freight;
         totalPrice += lineTotal;
         targetPrice += Math.round(targetUnit * qty * 100) / 100;
@@ -669,12 +687,17 @@
 
       totalCost = Math.round(totalCost * 100) / 100;
       totalFreight = Math.round(totalFreight * 100) / 100;
+      totalTax = Math.round(totalTax * 100) / 100;
       totalPrice = Math.round(totalPrice * 100) / 100;
       targetPrice = Math.round(targetPrice * 100) / 100;
 
       // Say so when pinned lines don't add up to the freight actually paid.
+      var anyTaxed = live.some(function (it) { return it.taxBox.checked; });
       var gap = Math.round((orderFreight - totalFreight) * 100) / 100;
-      if (orderFreight > 0 && !live.length) {
+      if (anyTaxed && taxRate === 0) {
+        freightHint.textContent = 'Lines are ticked as taxed, but no tax rate is set.';
+        freightHint.classList.add('warn');
+      } else if (orderFreight > 0 && !live.length) {
         freightHint.textContent = 'Freight entered, but no parts to spread it over.';
         freightHint.classList.add('warn');
       } else if (gap > 0.005) {
@@ -694,6 +717,7 @@
       var tMu = totalCost > 0 ? ((targetPrice - totalCost) / totalCost) * 100 : 0;
 
       document.getElementById('t-cost').textContent = '$' + money(totalCost);
+      document.getElementById('t-tax').textContent = '$' + money(totalTax);
       document.getElementById('t-freight').textContent = '$' + money(totalFreight);
       document.getElementById('t-gp').textContent = filled ? Math.round(gp) + '%' : '—';
       document.getElementById('t-total').textContent = '$' + money(totalPrice);
@@ -719,6 +743,7 @@
 
     avgEl.addEventListener('input', function () { recalc(true); });
     freightEl.addEventListener('input', function () { recalc(true); });
+    taxEl.addEventListener('input', function () { recalc(true); });
     freightEl.addEventListener('blur', function () {
       var n = parseNum(freightEl.value);
       if (n !== null) { freightEl.value = money(n); } else if (freightEl.value.trim()) { freightEl.value = ''; }
@@ -730,7 +755,7 @@
       var c = Math.min(MAX_AVG, Math.max(MIN_AVG, n));
       if (c !== n) { avgEl.value = c; recalc(true); }
     });
-    [fCost, fSize, fUsable].forEach(function (el) {
+    [fCost, fSize].forEach(function (el) {
       el.addEventListener('input', recalcFluid);
     });
     fUnit.addEventListener('change', function () { fillBillOptions(); recalcFluid(); });
