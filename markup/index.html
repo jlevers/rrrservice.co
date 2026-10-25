@@ -65,6 +65,9 @@
     .o-supplier:focus { border-bottom-color: var(--green); }
     .o-supplier::placeholder { color: #aaa; font-weight: 400; }
     .ohf .cost-label { font-size: 11px; margin-bottom: 4px; }
+    .taxctl { display: flex; align-items: center; gap: 8px; }
+    .taxctl > input[type="checkbox"] { accent-color: var(--green); transform: scale(1.15); cursor: pointer; margin: 0; }
+    .o-taxamt { font-size: 12px; color: #555; font-variant-numeric: tabular-nums; white-space: nowrap; }
     .rm-order { background: none; border: 0; color: #aaa; font-size: 12px; text-transform: uppercase; letter-spacing: .06em; cursor: pointer; padding: 0 0 12px; }
     .rm-order:hover { color: var(--warn); }
 
@@ -302,6 +305,7 @@
       <div class="actions">
         <button type="button" class="linkbtn" id="f-add">+ Add to parts list</button>
         <button type="button" class="linkbtn" id="f-save">Save this fluid</button>
+        <button type="button" class="linkbtn quiet" id="f-cancel" hidden>Cancel edit</button>
         <span class="hint" id="f-msg"></span>
       </div>
       <div id="saved-wrap" hidden>
@@ -324,7 +328,7 @@
       </table>
       <p class="note" id="over-note" hidden>Costs above $5,000 use the top tier until a higher bracket is set.</p>
       <p class="note">Each line takes its bracket from the <strong>landed cost of one part</strong> &mdash; its own cost, any sales tax you paid on it, and its share of that order's freight &mdash; then multiplies out by quantity.</p>
-      <p class="note">Tick <strong>Tax</strong> on the lines you actually paid sales tax on, and set that order's rate. That's tax you paid as part of the cost, so it gets marked up with the part.</p>
+      <p class="note">Tick <strong>Sales tax paid</strong> on the orders you were actually charged tax on, and set that order's rate. That's tax you paid as part of the cost, so it gets marked up with the parts.</p>
     </div>
   </main>
 
@@ -370,6 +374,7 @@
     var DEFAULT_MULT = 1.8;    // ≈44% GP, close to the matrix's own small-part bracket
     var FLUID_KEY = 'rrr-fluids-v1';
     var savedFluids = [];
+    var editingIdx = -1;   // which saved entry Edit is pointed at, so a rename updates it
 
     function money(n) {
       return n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -441,21 +446,24 @@
           '<div class="ohf"><label class="cost-label">Freight</label>' +
             '<div class="input-wrap xs"><span class="prefix" aria-hidden="true">$</span>' +
             '<input class="o-freight" type="text" inputmode="decimal" placeholder="0.00" autocomplete="off" aria-label="Order freight"></div></div>' +
-          '<div class="ohf"><label class="cost-label">Tax paid</label>' +
-            '<div class="input-wrap xs"><input class="o-tax" type="text" inputmode="decimal" placeholder="0" autocomplete="off" aria-label="Sales tax rate paid on this order">' +
-            '<span class="suffix" aria-hidden="true">%</span></div></div>' +
+          '<div class="ohf"><label class="cost-label">Sales tax paid</label>' +
+            '<div class="taxctl">' +
+              '<input class="o-taxed" type="checkbox" aria-label="Sales tax was paid on this order">' +
+              '<div class="input-wrap xs o-taxwrap"><input class="o-tax" type="text" inputmode="decimal" placeholder="8.1" autocomplete="off" aria-label="Sales tax rate paid on this order">' +
+              '<span class="suffix" aria-hidden="true">%</span></div>' +
+              '<span class="o-taxamt"></span>' +
+            '</div></div>' +
           '<button class="rm-order" type="button">Remove order</button>' +
         '</div>' +
         '<table class="items"><thead><tr>' +
           '<th scope="col">Part</th><th scope="col">Cost Ea</th><th scope="col">Qty</th>' +
-          '<th scope="col" class="col-tax">Tax</th><th scope="col">Freight</th>' +
+          '<th scope="col">Freight</th>' +
           '<th scope="col">GP %</th><th scope="col">Price Ea</th><th scope="col">Line Total</th>' +
           '<th scope="col" class="col-rm">&nbsp;</th>' +
         '</tr></thead><tbody></tbody><tfoot><tr>' +
           '<td class="lbl">Order total</td>' +
           '<td data-label="Cost" class="o-t-cost">&mdash;</td>' +
           '<td class="blank"></td>' +
-          '<td data-label="Tax paid" class="o-t-tax">&mdash;</td>' +
           '<td data-label="Freight" class="o-t-freight">&mdash;</td>' +
           '<td data-label="Gross profit" class="o-t-gp">&mdash;</td>' +
           '<td class="blank"></td>' +
@@ -471,10 +479,12 @@
         supplier: wrap.querySelector('.o-supplier'),
         freightEl: wrap.querySelector('.o-freight'),
         taxEl: wrap.querySelector('.o-tax'),
+        taxedEl: wrap.querySelector('.o-taxed'),
+        taxWrap: wrap.querySelector('.o-taxwrap'),
+        taxAmt: wrap.querySelector('.o-taxamt'),
         tbody: wrap.querySelector('tbody'),
         hint: wrap.querySelector('.o-hint'),
         tCost: wrap.querySelector('.o-t-cost'),
-        tTax: wrap.querySelector('.o-t-tax'),
         tFreight: wrap.querySelector('.o-t-freight'),
         tGp: wrap.querySelector('.o-t-gp'),
         tPrice: wrap.querySelector('.o-t-price')
@@ -488,6 +498,7 @@
         recalc(true);
       });
       order.taxEl.addEventListener('input', function () { recalc(true); });
+      order.taxedEl.addEventListener('change', function () { recalc(true); });
       wrap.querySelector('.add-part').addEventListener('click', function () { addRow(order, true); });
       wrap.querySelector('.rm-order').addEventListener('click', function () { removeOrder(order); });
 
@@ -513,7 +524,6 @@
         '<td class="c-desc" data-label="Part"><input class="i-desc" type="text" placeholder="Description (optional)" autocomplete="off" aria-label="Part description"></td>' +
         '<td data-label="Cost ea"><span class="money-in"><span class="pfx">$</span><input class="i-cost num" type="text" inputmode="decimal" placeholder="0.00" autocomplete="off" aria-label="Cost each"></span></td>' +
         '<td data-label="Qty"><input class="i-qty num" type="text" inputmode="numeric" value="1" autocomplete="off" aria-label="Quantity"></td>' +
-        '<td class="c-tax" data-label="Tax paid"><input class="i-tax" type="checkbox" aria-label="Sales tax was paid on this part"></td>' +
         '<td data-label="Freight"><span class="money-in"><span class="pfx">$</span><input class="i-freight num" type="text" inputmode="decimal" placeholder="0.00" autocomplete="off" aria-label="Freight share"></span></td>' +
         '<td class="c-gp" data-label="GP %">&mdash;</td>' +
         '<td data-label="Price ea"><span class="price-cell"><span class="money-in"><span class="pfx">$</span><input class="i-price num" type="text" inputmode="decimal" placeholder="0.00" autocomplete="off" aria-label="Price each"></span><button class="row-reset" type="button" title="Reset to target price" hidden>&#8635;</button></span></td>' +
@@ -528,7 +538,6 @@
         desc: tr.querySelector('.i-desc'),
         cost: tr.querySelector('.i-cost'),
         qty: tr.querySelector('.i-qty'),
-        taxBox: tr.querySelector('.i-tax'),
         freight: tr.querySelector('.i-freight'),
         price: tr.querySelector('.i-price'),
         gpCell: tr.querySelector('.c-gp'),
@@ -547,7 +556,6 @@
         if (item.qty.value.trim()) item.qty.value = parseQty(item.qty.value);
         recalc();
       });
-      item.taxBox.addEventListener('change', function () { recalc(true); });
       item.freight.addEventListener('input', function () {
         item.freightPin = parseNum(item.freight.value);
         recalc();
@@ -621,7 +629,9 @@
       var used = {};
 
       orders.forEach(function (order) {
-        var taxRate = Math.min(100, Math.max(0, parseNum(order.taxEl.value) || 0));
+        var taxed = order.taxedEl.checked;
+        var taxRate = taxed ? Math.min(100, Math.max(0, parseNum(order.taxEl.value) || 0)) : 0;
+        order.taxWrap.classList.toggle('off', !taxed);
         var orderFreight = parseNum(order.freightEl.value) || 0;
 
         // Pass 1 — read the lines, blanking the ones with no cost yet.
@@ -682,7 +692,7 @@
 
           // Sales tax paid at the counter is part of what the part cost, so it
           // rides into the bracket alongside freight.
-          var taxMult = item.taxBox.checked ? 1 + taxRate / 100 : 1;
+          var taxMult = taxRate > 0 ? 1 + taxRate / 100 : 1;
           var lineTax = Math.round(cost * qty * (taxMult - 1) * 100) / 100;
 
           if (item.freightPin === null && (force || document.activeElement !== item.freight)) {
@@ -721,7 +731,7 @@
           oPrice += lineTotal;
           oTarget += Math.round(targetUnit * qty * 100) / 100;
           // Only the amount you were charged tax on earns the deduction.
-          if (item.taxBox.checked) oTaxedBase += cost * qty;
+          if (taxRate > 0) oTaxedBase += cost * qty;
         });
 
         oCost = Math.round(oCost * 100) / 100;
@@ -730,15 +740,14 @@
         oPrice = Math.round(oPrice * 100) / 100;
 
         order.tCost.textContent = '$' + money(oCost);
-        order.tTax.textContent = '$' + money(oTax);
+        order.taxAmt.textContent = oTax ? '= $' + money(oTax) : '';
         order.tFreight.textContent = '$' + money(oFreight);
         order.tPrice.textContent = '$' + money(oPrice);
         order.tGp.textContent = oPrice > 0 ? Math.round(((oPrice - oCost) / oPrice) * 100) + '%' : '—';
 
-        var anyTaxed = live.some(function (it) { return it.taxBox.checked; });
         var gap = Math.round((orderFreight - oFreight) * 100) / 100;
-        if (anyTaxed && taxRate === 0) {
-          order.hint.textContent = 'Lines are ticked as taxed, but this order has no tax rate set.';
+        if (taxed && taxRate === 0) {
+          order.hint.textContent = 'This order is marked as taxed, but no rate is set.';
           order.hint.classList.add('warn');
         } else if (orderFreight > 0 && !live.length) {
           order.hint.textContent = 'Freight entered, but this order has no parts to spread it over.';
@@ -946,6 +955,13 @@
       flash._t = setTimeout(function () { fMsg.textContent = ''; }, 3000);
     }
 
+    function setEditMode(on, name) {
+      editingIdx = on ? editingIdx : -1;
+      document.getElementById('f-save').textContent = on ? 'Update ' + name : 'Save this fluid';
+      document.getElementById('f-cancel').hidden = !on;
+    }
+    function endEdit() { setEditMode(false); }
+
     function saveFluid() {
       var name = fDesc.value.trim();
       if (!name) { flash('Give the fluid a name first.'); fDesc.focus(); return; }
@@ -958,15 +974,42 @@
         cCost: fCost.value, cSize: fSize.value, cUnit: fUnit.value,
         bill: fBill.value, mult: fMult.value
       };
-      var at = -1;
-      for (var i = 0; i < savedFluids.length; i++) {
-        if (savedFluids[i].name.toLowerCase() === name.toLowerCase()) { at = i; break; }
+
+      var wasEditing = editingIdx >= 0 && !!savedFluids[editingIdx];
+      var replaced = false;
+      if (wasEditing) {
+        // Update the row Edit was pointed at, even if the name changed. Any other
+        // entry that already owns the new name is folded into this one.
+        var target = savedFluids[editingIdx];
+        for (var j = savedFluids.length - 1; j >= 0; j--) {
+          if (savedFluids[j] !== target && savedFluids[j].name.toLowerCase() === name.toLowerCase()) {
+            savedFluids.splice(j, 1);
+          }
+        }
+        savedFluids[savedFluids.indexOf(target)] = entry;
+      } else {
+        var at = -1;
+        for (var i = 0; i < savedFluids.length; i++) {
+          if (savedFluids[i].name.toLowerCase() === name.toLowerCase()) { at = i; break; }
+        }
+        if (at >= 0) savedFluids[at] = entry; else savedFluids.push(entry);
+        replaced = at >= 0;
       }
-      if (at >= 0) savedFluids[at] = entry; else savedFluids.push(entry);
+
+      endEdit();
       renderSaved();
       flash(storeFluids()
-        ? (at >= 0 ? 'Updated ' + name + '.' : 'Saved ' + name + '.')
+        ? ((wasEditing || replaced) ? 'Updated ' + name + '.' : 'Saved ' + name + '.')
         : "Couldn't save — this browser is blocking storage.");
+    }
+
+    function clearFluidForm() {
+      endEdit();
+      fDesc.value = '';
+      fCost.value = '';
+      priceTouched = false;
+      fPrice.value = '';
+      recalcFluid();
     }
 
     function renderSaved() {
@@ -994,6 +1037,8 @@
           placeFluid(f.name, f.cost, f.price, f.abbr);
         });
         row.querySelector('.sv-edit').addEventListener('click', function () {
+          editingIdx = idx;
+          setEditMode(true, f.name);
           fDesc.value = f.name;
           fCost.value = f.cCost || '';
           fSize.value = f.cSize || '';
@@ -1008,6 +1053,7 @@
         });
         row.querySelector('.sv-del').addEventListener('click', function () {
           savedFluids.splice(idx, 1);
+          endEdit();
           renderSaved();
           storeFluids();
           flash('Removed ' + f.name + '.');
@@ -1041,6 +1087,7 @@
     });
     document.getElementById('f-add').addEventListener('click', addFluidToParts);
     document.getElementById('f-save').addEventListener('click', saveFluid);
+    document.getElementById('f-cancel').addEventListener('click', clearFluidForm);
     document.getElementById('add-order').addEventListener('click', function () { addOrder(true); });
     document.getElementById('clear-btn').addEventListener('click', clearAll);
 
