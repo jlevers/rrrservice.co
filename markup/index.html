@@ -327,8 +327,8 @@
         </tfoot>
       </table>
       <p class="note" id="over-note" hidden>Costs above $5,000 use the top tier until a higher bracket is set.</p>
-      <p class="note">Each line takes its bracket from the <strong>landed cost of one part</strong> &mdash; its own cost, any sales tax you paid on it, and its share of that order's freight &mdash; then multiplies out by quantity.</p>
-      <p class="note">Tick <strong>Sales tax paid</strong> on the orders you were actually charged tax on, and set that order's rate. That's tax you paid as part of the cost, so it gets marked up with the parts.</p>
+      <p class="note">Each line takes its bracket from the <strong>landed cost of one part</strong> &mdash; its own cost, its share of that order's freight, and any sales tax you paid on both &mdash; then multiplies out by quantity.</p>
+      <p class="note">Tick <strong>Sales tax paid</strong> on the orders you were actually charged tax on, and set that order's rate. The tax is figured on the order total, freight included, the way sellers like eBay charge it. That's tax you paid as part of the cost, so it gets marked up with the parts.</p>
     </div>
   </main>
 
@@ -690,17 +690,18 @@
           var cost = item._cost, qty = item._qty, freight = item._freight || 0;
           filled++;
 
-          // Sales tax paid at the counter is part of what the part cost, so it
-          // rides into the bracket alongside freight.
+          // Sales tax paid at purchase is part of what the part cost, so it
+          // rides into the bracket too. Sellers tax the order total, shipping
+          // included, so the line's freight share is taxed along with it.
           var taxMult = taxRate > 0 ? 1 + taxRate / 100 : 1;
-          var lineTax = Math.round(cost * qty * (taxMult - 1) * 100) / 100;
+          var lineTax = Math.round((cost * qty + freight) * (taxMult - 1) * 100) / 100;
 
           if (item.freightPin === null && (force || document.activeElement !== item.freight)) {
             item.freight.value = freight ? money(freight) : '';
           }
           item.freight.classList.toggle('pinned', item.freightPin !== null);
 
-          var landedUnit = cost * taxMult + freight / qty;
+          var landedUnit = (cost + freight / qty) * taxMult;
           if (landedUnit > BRACKETS[BRACKETS.length - 1].max) overMax = true;
 
           var tier = tierFor(landedUnit);
@@ -713,7 +714,7 @@
           }
           var unit = item.override !== null ? item.override : targetUnit;
 
-          var lineCost = Math.round((cost * qty * taxMult + freight) * 100) / 100;
+          var lineCost = Math.round((cost * qty + freight) * taxMult * 100) / 100;
           var lineTotal = Math.round(unit * qty * 100) / 100;
           var lineGp = unit > 0 ? ((unit - landedUnit) / unit) * 100 : 0;
 
@@ -731,7 +732,7 @@
           oPrice += lineTotal;
           oTarget += Math.round(targetUnit * qty * 100) / 100;
           // Only the amount you were charged tax on earns the deduction.
-          if (taxRate > 0) oTaxedBase += cost * qty;
+          if (taxRate > 0) oTaxedBase += cost * qty + freight;
         });
 
         oCost = Math.round(oCost * 100) / 100;
